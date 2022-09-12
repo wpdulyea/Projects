@@ -122,7 +122,7 @@ def main():
         if args is None:
             ret = 1
             raise Exception("Failed to parse command line arguments")
-    
+
         # Start the Server on option.port-number
         servers = MPServer((args.bind_address, args.port), MessageHandler)
         parent = Process(target=servers.serve_forever)
@@ -134,7 +134,7 @@ def main():
     except KeyboardInterrupt:
         print("\nShutting Down Server....\n")
     except Exception as errmsg:
-            print(format_exc())
+        print(str(errmsg))
     finally:
         if servers.socket is not None:
             servers.socket.close()
