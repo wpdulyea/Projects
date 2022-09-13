@@ -55,7 +55,7 @@ class MPServer(ForkingMixIn, ServerFirst):
 
 class MessageHandler(BaseRequestHandler):
     MAX_MSG_SZ = 1024
-    regex = re.compile("sleep\s+(\d+)")
+    regex = re.compile(r"sleep\s+(\d+)")
     shutdown = re.compile("shutdown")
 
     def handle(self):
@@ -69,7 +69,9 @@ class MessageHandler(BaseRequestHandler):
         if match is not None:
             value = int(match.group(1))
             while value > 0:
-                print("Response will be delayed for {value}/sec\n")
+                self.request.sendall(
+                    bytes("Response will be delayed for {value}/sec\n", "utf-8")
+                )
                 sleep(value)
                 value -= 1
 
