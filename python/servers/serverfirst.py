@@ -59,7 +59,7 @@ class MessageHandler(BaseRequestHandler):
     shutdown = re.compile("shutdown")
 
     def handle(self):
-        self.data = self.request.recv(self.MAX_MSG_SZ).strip()
+        self.data = self.request.recv(self.MAX_MSG_SZ).decode("utf-8").strip()
         self.parse_message()
         print(f"{self.client_address[0]} wrote: {self.data}")
         self.request.sendall(bytes(self.data + "\n", "utf-8"))
