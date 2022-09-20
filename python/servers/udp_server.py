@@ -1,6 +1,5 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-u"""
+#!/usr/bin/env python3
+"""
 Description:
     UDP Echo Service with delay.  If the message contains 'sleep n' when n is
     an integer value then the response will be delayed for n seconds.
@@ -9,96 +8,156 @@ Example:
     %prog -p port-number (Starts the Server listening on specified port).
     %prog -s hostname (which defaults to localhost).
 """
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #                               Imports
-#-----------------------------------------------------------------------------
-from SocketServer import UDPServer
-from SocketServer import ForkingMixIn
-from SocketServer import BaseRequestHandler
-from multiprocessing import Process
-from time import sleep
-import re
-from os import curdir, sep
-import sys
+# -----------------------------------------------------------------------------
+try:
+    from socketserver import UDPServer, ForkingMixIn, BaseRequestHandler
+    from socket import gethostbyname, gethostname
+    from multiprocessing import Process
+    from traceback import format_exc
+    from time import sleep
+    from os import curdir, sep
+    import re
+    import json
+    import sys
+except ImportError as err:
+    print(f"Module import failed due to {err}")
+    sys.exit(1)
 
 
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #                           Global definitions
-#-----------------------------------------------------------------------------
-__author__  = "Copyright (c) 2014, Riverbed LTD, All rights reserved."
-__email__   = "wdulyea@riverbed.com"
+# -----------------------------------------------------------------------------
+__author__ = "Copyright (c) 2022, William Dulyea, All rights reserved."
+__email__ = "wpdulyea@yahoo.com"
 __version__ = "$Name: Release 0.1.0 $"[7:-2]
 
-# Used by the email system to email reports to.
-DEFAULT_EMAIL = __email__
-
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #                         Class definitions
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 class UDPMessageHandler(BaseRequestHandler):
+    MAX_MSG_SZ = 1024
+    regex = re.compile(r"sleep\s+(\d+)")
+    data = ""
 
-   def handle(self):
-      data = self.request[0].strip()
-      self.parse_message(data)
-      socket = self.request[1]
-      print "{} wrote:".format(self.client_address[0])
-      print data
-      socket.sendto(data, self.client_address)
+    def handle(self):
+        """The if check is specific to transaction metadata which is new line
+        terminated between records sent on long lived connections."""
+        try:
+            while True:
+                buf = self.request[0].strip().decode("utf-8")
+                if buf is None:
+                    continue
+                self.data += buf
+                if "\n" in buf:
+                    break
 
-   def parse_message(self, data):
-      s = re.compile('sleep\s+(\d+)')
-      match = s.search(data)
-      if match:
-         value = int(match.group(1))
+            print(f"{self.client_address[0]} message:\n")
+            self.__parse_message()
+            """Echo the message back to sender"""
+            self.request[1].sendto(bytes(self.data, "utf-8"), self.client_address)
+        except Exception as error:
+            print(str(error))
 
-         print "Going delay echo for %i/sec\n" %value
-         sleep(value)
+    def __parse_message(self):
+        try:
+            match = self.regex.search(self.data)
+            if match is not None:
+                value = int(match.group(1))
 
-class MPUDPServer( ForkingMixIn, UDPServer ):
-   pass
+                while 0 < value:
+                    self.request[1].sendto(
+                        bytes("Response will be delayed for {value}/sec\n", "utf-8"),
+                        self.client_address,
+                    )
+                    sleep(value)
+                    value -= 1
+            else:
+                print(f"{self.data}")
+        except Exception as error:
+            print(str(error))
 
-#-----------------------------------------------------------------------------
+
+class MPUDPServer(ForkingMixIn, UDPServer):
+    pass
+
+
+# -----------------------------------------------------------------------------
 #                         Function definitions
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+def read_args():
+    from argparse import ArgumentParser
+
+    use = __doc__
+    args = None
+
+    try:
+        parser = ArgumentParser(usage=use)
+        parser.add_argument(
+            "-p",
+            dest="port",
+            type=int,
+            default=6050,
+            help="Specifies the port number to listen on.",
+        )
+        parser.add_argument(
+            "-b",
+            dest="bind_address",
+            default="",
+            help="Hostname or IPv4 address to listen on - defaults to all interfaces",
+        )
+        args = parser.parse_args()
+
+    except Exception as error:
+        print(str(error))
+    finally:
+        return args
+
+
 def main():
-   from optparse import OptionParser
+    ret = 0
+    appName = str(sys.argv[0]).split(sep).pop()
+    hostname = gethostname()
+    worker = None
+    server = None
 
-   appName = str(sys.argv[0]).split(sep).pop()
-   print "\nRunning: %s, %s" %(appName,__version__)
-   print "%s" %__author__
-   print "Contact %s for any questions.\n" %__email__
-   #
-   #
+    print(f"\nRunning: {appName} {__version__}")
+    print(f"{__author__}")
+    print(f"Contact {__email__} for any questions.\n")
+    #
+    #
+    try:
+        args = read_args()
+        if args is None:
+            ret = 1
+            raise Exception("Failed to parse command line arguments")
 
-   use = __doc__
-   parser = OptionParser(usage=use)
-   parser.add_option('-p', dest='port', type=int, default=5050,
-     help='Specifies the port number to listen on.')
-   parser.add_option('-s', dest='hostname', default='localhost',
-     help='Specify the hostname or IPv4 address to listen on')
-   (options, args) = parser.parse_args()
+        # Start the Server on option.port-number
+        server = MPUDPServer((args.bind_address, args.port), UDPMessageHandler)
+        ip, port = server.server_address
 
-   # Start the Server on option.port-number
-   try:
-      server = MPUDPServer((options.hostname, options.port), UDPMessageHandler)
-      ip, port = server.server_address
+        # Start a thread with the server -- that thread will then start one
+        # more thread for each request
+        worker = Process(target=server.serve_forever)
+        # Exit the server thread when the main thread terminates
+        worker.daemon = True
+        print(f"Started TCP echo service on Host {hostname} port {args.port}...")
+        worker.start()
+        worker.join()
+    except KeyboardInterrupt:
+        print("\nShutting Down Server....\n")
+    except Exception as errmsg:
+        ret = 1
+        print(str(errmsg))
+    finally:
+        if worker is not None:
+            worker.terminate()
 
-      # Start a thread with the server -- that thread will then start one
-      # more thread for each request
-      worker = Process(target=server.serve_forever)
-      # Exit the server thread when the main thread terminates
-      worker.daemon = True
-      print 'Started UDP Echo service on Host %s port %i...' %(options.hostname, options.port)
-      worker.start()
-      worker.join()
 
-   except KeyboardInterrupt:
-      print "\nShutting Down Server....\n"
-      worker.terminate()
-
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #                            Main Entry point
-#-----------------------------------------------------------------------------
-if __name__ == '__main__':
+# -----------------------------------------------------------------------------
+if __name__ == "__main__":
     ret = main()
     sys.exit(ret)
