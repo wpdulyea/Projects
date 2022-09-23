@@ -1,0 +1,8 @@
+name: Tests' global variables
+description:
+  Userful global variables
+
+variables:
+  hostname: "localhost"
+  port: 8080
+  httpserver: "http://localhost:8080"

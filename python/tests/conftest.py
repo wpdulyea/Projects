@@ -8,12 +8,14 @@ from multiprocessing import Process
 sys.path.append("../")
 from servers.tcp_server import MPTCPServer, TCPMessageHandler
 from servers.serverfirst import MPServer, MessageHandler
+import servers.http_server as webserver
 
 bind_address = "localhost"
 tcp_port = randrange(8080, 8180)
 srv_port = randrange(8080, 8180)
 server_address = (bind_address, srv_port)
 tcp_address = (bind_address, tcp_port)
+
 
 class ConnectionClass:
     def tcp_addr(self):
@@ -57,7 +59,7 @@ def start_tcp_server():
     worker.daemon = True
     worker.start()
     yield server
-    #worker.join()
+    # worker.join()
 
 
 @pytest.fixture(scope="class")
@@ -69,5 +71,18 @@ def start_serverfirst():
     print("Waiting to echo inbound messages")
     worker.start()
     yield server
-    #worker.join()
+    # worker.join()
 
+
+@pytest.fixture(scope="class")
+def start_web_server(request):
+    hostname = request.node.get_closest_marker("hostname")
+    port = request.node.get_closest_marker("port")
+    server = webserver.MPServer((hostname, port), webserver.MessageHandler)
+    worker = Process(target=server.serve_forever)
+    worker.daemon = True
+    print(f"Host {hostname} listening on port {port}")
+    print("Waiting to echo inbound messages")
+    worker.start()
+    yield server
+    # worker.join()
