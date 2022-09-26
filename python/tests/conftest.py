@@ -4,11 +4,18 @@ import sys
 import tempfile
 from random import randrange
 from multiprocessing import Process
+try:
+    sys.path.append("../")
+    from servers.tcp_server import MPTCPServer, TCPMessageHandler
+    from servers.serverfirst import MPServer, MessageHandler
+    import servers.http_server as webserver
+except ModuleNotFoundError as error:
+    print(f"tests need to run from the test directory: {error}")
+    sys.exit(1)
+except ImportError as err:
+    print(f"Module import failed due to {error}")
+    sys.exit(1)
 
-sys.path.append("../")
-from servers.tcp_server import MPTCPServer, TCPMessageHandler
-from servers.serverfirst import MPServer, MessageHandler
-import servers.http_server as webserver
 
 bind_address = "localhost"
 tcp_port = randrange(8080, 8180)
@@ -76,9 +83,9 @@ def start_serverfirst():
 
 @pytest.fixture(scope="class")
 def start_web_server(request):
-    hostname = request.node.get_closest_marker("hostname")
-    port = request.node.get_closest_marker("port")
-    server = webserver.MPServer((hostname, port), webserver.MessageHandler)
+    hostname = "localhost"
+    port = 8080
+    server = webserver.MPServer((hostname, port), webserver.RequestHandler)
     worker = Process(target=server.serve_forever)
     worker.daemon = True
     print(f"Host {hostname} listening on port {port}")
