@@ -3,6 +3,16 @@
 from ctypes import c_ulong
 
 
+b_word = 32
+b_byte = 8
+word = 4 
+def shift_right(bits):
+    return 1 << bits
+
+def digit(a, b):
+    return a >> ((b_word - ((b + 1)*b_byte)) & (shift_right(b_bytes) - 1))
+
+
 # Lookup table (Dictionary) for each Roman symbol to Integer
 Roman = {
     "I": 1,
@@ -14,9 +24,9 @@ Roman = {
     "M": 1000,
 }
 
-def toBin(n, bits=32) :
+def toBin(n, bits=b_word) :
     res = []  
-    i = 1 << (bits - 1)
+    i = shift_right(bits - 1)
     
     # Set a safety boundry for limiting what is correctly displaying
     if n > 2**bits - 1:
