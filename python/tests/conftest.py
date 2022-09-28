@@ -9,13 +9,13 @@ try:
     from servers.tcp_server import MPTCPServer, TCPMessageHandler
     from servers.serverfirst import MPServer, MessageHandler
     import servers.http_server as webserver
+    import algorithms.convertNum as convert
 except ModuleNotFoundError as error:
     print(f"tests need to run from the test directory: {error}")
     sys.exit(1)
 except ImportError as err:
     print(f"Module import failed due to {error}")
     sys.exit(1)
-
 
 bind_address = "localhost"
 tcp_port = randrange(8080, 8180)
