@@ -1,0 +1,23 @@
+test_name: Validate server responses
+includes:
+  - !include global_variables.yaml
+
+marks:
+  - usefixtures:
+    - start_web_server
+
+stages:
+  - name: Basic Request
+    request:
+      url: "http://{hostname:s}:{port:d}/"
+      method: GET
+    response:
+      status_code: 200
+
+  - name: Post JSON
+    request:
+      url: "{httpserver:s}/"
+      method: GET
+    response:
+      status_code: 200
+

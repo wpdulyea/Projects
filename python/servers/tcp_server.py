@@ -38,7 +38,7 @@ __email__ = "wpdulyea@yahoo.com"
 # -----------------------------------------------------------------------------
 class TCPMessageHandler(BaseRequestHandler):
     MAX_MSG_SZ = 1024
-    regex = re.compile(r"sleep(\s+)(\d+)")
+    regex = re.compile(r"sleep\s+(\d+)")
     data = ""
 
     def handle(self):
@@ -46,7 +46,7 @@ class TCPMessageHandler(BaseRequestHandler):
         terminated between records sent on long lived connections."""
         try:
             while True:
-                buf = self.request.recv(self.MAX_MSG_SZ).decode('utf-8')
+                buf = self.request.recv(self.MAX_MSG_SZ).decode("utf-8")
                 if buf is None:
                     continue
                 self.data += buf
@@ -67,7 +67,9 @@ class TCPMessageHandler(BaseRequestHandler):
                 value = int(match.group(1))
 
                 while 0 < value:
-                    print("Response will be delayed for {value}/sec\n")
+                    self.request.sendall(
+                        bytes("Response will be delayed for {value}/sec\n", "utf-8")
+                    )
                     sleep(value)
                     value -= 1
             else:

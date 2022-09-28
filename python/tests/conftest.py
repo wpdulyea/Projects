@@ -2,21 +2,36 @@ import pytest
 import os
 import sys
 import tempfile
+from random import randrange
 from multiprocessing import Process
+try:
+    sys.path.append("../")
+    from servers.tcp_server import MPTCPServer, TCPMessageHandler
+    from servers.serverfirst import MPServer, MessageHandler
+    import servers.http_server as webserver
+except ModuleNotFoundError as error:
+    print(f"tests need to run from the test directory: {error}")
+    sys.exit(1)
+except ImportError as err:
+    print(f"Module import failed due to {error}")
+    sys.exit(1)
 
-sys.path.append("../")
-from servers.tcp_server import MPTCPServer, TCPMessageHandler
 
 import algorithms.convertNum as convert
 
 bind_address = "localhost"
-port = 8080
-server_address = (bind_address, port)
+tcp_port = randrange(8080, 8180)
+srv_port = randrange(8080, 8180)
+server_address = (bind_address, srv_port)
+tcp_address = (bind_address, tcp_port)
 
 
 class ConnectionClass:
-    server_address = (bind_address, port)
-    client_address = server_address
+    def tcp_addr(self):
+        return (bind_address, tcp_port)
+
+    def srv_addr(self):
+        return (bind_address, srv_port)
 
 
 @pytest.fixture(scope="session")
@@ -46,11 +61,37 @@ def teardown():
     print(f"Cleaning up your test run now..")
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def start_tcp_server():
-    server = MPTCPServer(server_address, TCPMessageHandler)
+    server = MPTCPServer(tcp_address, TCPMessageHandler)
     worker = Process(target=server.serve_forever)
     worker.daemon = True
     worker.start()
     yield server
+    # worker.join()
 
+
+@pytest.fixture(scope="class")
+def start_serverfirst():
+    server = MPServer(server_address, MessageHandler)
+    worker = Process(target=server.serve_forever)
+    worker.daemon = True
+    print(f"Host {server_address[0]} listening on port {server_address[1]}")
+    print("Waiting to echo inbound messages")
+    worker.start()
+    yield server
+    # worker.join()
+
+
+@pytest.fixture(scope="class")
+def start_web_server(request):
+    hostname = "localhost"
+    port = 8080
+    server = webserver.MPServer((hostname, port), webserver.RequestHandler)
+    worker = Process(target=server.serve_forever)
+    worker.daemon = True
+    print(f"Host {hostname} listening on port {port}")
+    print("Waiting to echo inbound messages")
+    worker.start()
+    yield server
+    # worker.join()

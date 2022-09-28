@@ -1,31 +1,73 @@
 import pytest
 import socket
-
 from conftest import ConnectionClass
 
 
-def test_send_message():
-    pass  # perform some webtest test for your app
-
-
 @pytest.mark.usefixtures("start_tcp_server")
-def test_echo():
+class TestTCPServer:
     con = ConnectionClass()
     MAX_BYTES = 1024
-    MSG = "Hello, world\n"
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
-        client.connect(con.client_address)
-        client.sendall(bytes(MSG, "utf-8"))
-        data = client.recv(MAX_BYTES)
-        assert data is not None
-        data = str(data.decode("utf-8"))
-        assert data == MSG
+
+    def test_send_message(self):
+        MSG = "Nothing really important\n"
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
+            client.connect(self.con.tcp_addr())
+            client.sendall(bytes(MSG, "utf-8"))
+            data = client.recv(self.MAX_BYTES)
+            assert data is not None
+
+    def test_echo(self):
+        MSG = "Hello, world\n"
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
+            client.connect(self.con.tcp_addr())
+            client.sendall(bytes(MSG, "utf-8"))
+            data = client.recv(self.MAX_BYTES)
+            data = str(data.decode("utf-8"))
+            assert data == MSG
+
+    @pytest.mark.skip("Feature is not implemented")
+    def test_delay(self):
+        pass
+
+    @pytest.mark.skip("Feature is not implemented")
+    def test_shutdown(self):
+        pass
 
 
-def test_shutdown():
-    pass
+@pytest.mark.usefixtures("start_serverfirst")
+class TestServer:
+    con = ConnectionClass()
+    MAX_BYTES = 1024
 
+    def test_connect(self):
+        RSP = "RDY_TOECHO"
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
+            client.connect(self.con.srv_addr())
+            data = client.recv(self.MAX_BYTES)
+            data = str(data.decode("utf-8")).strip()
+            assert data == RSP
 
-class TestClass:
-    def test_method(self):
+    def test_send_message(self):
+        MSG = "Nothing really important"
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
+            client.connect(self.con.srv_addr())
+            ## Servers sends a rdy message, i.e. server response before client sends
+            client.recv(self.MAX_BYTES)
+            client.sendall(bytes(MSG, "utf-8"))
+            data = client.recv(self.MAX_BYTES)
+            assert data is not None
+
+    def test_echo_message(self):
+        MSG = "Hello, world\n"
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
+            client.connect(self.con.srv_addr())
+            ## Servers sends a rdy message, i.e. server response before client sends
+            client.recv(self.MAX_BYTES)
+            client.sendall(bytes(MSG, "utf-8"))
+            data = client.recv(self.MAX_BYTES)
+            data = str(data.decode("utf-8"))
+            assert data == MSG
+
+    @pytest.mark.skip("Feature is not implemented")
+    def test_shutdown(self):
         pass
