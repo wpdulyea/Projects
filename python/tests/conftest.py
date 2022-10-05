@@ -24,7 +24,7 @@ server_address = (bind_address, srv_port)
 tcp_address = (bind_address, tcp_port)
 
 
-class ConnectionClass:
+class t_Connection:
     def tcp_addr(self):
         return (bind_address, tcp_port)
 
@@ -49,24 +49,23 @@ def cleandir():
         os.chdir(old_cwd)
 
 
-@pytest.fixture
+@pytest.fixture(scope="class")
 def setup():
     print(f"Setting up your test run now..")
 
 
-@pytest.fixture
+@pytest.fixture(scope="class")
 def teardown():
     print(f"Cleaning up your test run now..")
 
 
 @pytest.fixture(scope="class")
-def start_tcp_server():
+def start_tcp_server(setup, teardown):
     server = MPTCPServer(tcp_address, TCPMessageHandler)
     worker = Process(target=server.serve_forever)
     worker.daemon = True
     worker.start()
-    yield server
-    # worker.join()
+    yield worker
 
 
 @pytest.fixture(scope="class")
@@ -77,8 +76,7 @@ def start_serverfirst():
     print(f"Host {server_address[0]} listening on port {server_address[1]}")
     print("Waiting to echo inbound messages")
     worker.start()
-    yield server
-    # worker.join()
+    yield worker
 
 
 @pytest.fixture(scope="class")
@@ -91,5 +89,5 @@ def start_web_server(request):
     print(f"Host {hostname} listening on port {port}")
     print("Waiting to echo inbound messages")
     worker.start()
-    yield server
-    # worker.join()
+    yield worker
+

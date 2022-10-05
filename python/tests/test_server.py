@@ -1,11 +1,11 @@
 import pytest
 import socket
-from conftest import ConnectionClass
+from conftest import t_Connection
 
 
 @pytest.mark.usefixtures("start_tcp_server")
-class TestTCPServer:
-    con = ConnectionClass()
+class TestTCPServer():
+    con = t_Connection()
     MAX_BYTES = 1024
 
     def test_send_message(self):
@@ -36,7 +36,7 @@ class TestTCPServer:
 
 @pytest.mark.usefixtures("start_serverfirst")
 class TestServer:
-    con = ConnectionClass()
+    con = t_Connection()
     MAX_BYTES = 1024
 
     def test_connect(self):
