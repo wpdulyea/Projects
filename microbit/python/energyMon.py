@@ -2,18 +2,16 @@
 __author__ = "William Dulyea"
 __email__ = "wpdulyea@yahoo.com"
 
-try:
-    from microbit import *
-
-except ImportError as err:
-    print(f"Module import failed due to {err}")
-    sys.exit(1)
+from microbit import *
+import random
+import os
+import sys
 
 SECONDS = 1
 MINUTES = 60
 HOURS = 3600
-OFF = Image("0000:0000:0000:0000:9999")
-On = Image("9999:0000:0000:0000:0000")
+OFF = Image("00001:00001:00001:00001:00001")
+ON = Image("00009:00009:00009:00009:00009")
 
 display_divisor = SECONDS
 on_threshold = 500
@@ -53,6 +51,5 @@ if __name__ == "__main__":
             sleep(400)
 
     except Exception as err:
-        logger.error(str(err))
-        print(format_exc())
+        print(str(err))
         sys.exit()
