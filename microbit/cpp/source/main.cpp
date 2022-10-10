@@ -2,8 +2,8 @@
 
 MicroBit    uBit;
 
-// Let's set up some event listeners to let hardware interrupts handle context swwitching
-
+// Let's set up some event listeners for buttons and the radio
+//
 void onButton(MicroBitEvent e)
 {
 	if (e.source == MICROBIT_ID_BUTTON_A) {
