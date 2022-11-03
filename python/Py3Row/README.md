@@ -2,7 +2,7 @@
 
 ## ABOUT
 
-Py3Row is taken from the [pyRow project](https://github.com/wemakewaves/PyRow) and updated to run on python3. Also included in this project is the [Py C2 Monitor](http://raspirowing.com/index.php/projects/py-c2-monitor) using the pygame framework updated to run with Python3. This library of code provides an Python API library to interact with a Concept 2 Rowing Ergometer PM3, PM4 or PM5 monitor[^1].
+Py3Row is taken from the [pyRow project](https://github.com/wemakewaves/PyRow) and updated to run on python3. Also included in this project is the [Py C2 Monitor](http://raspirowing.com/index.php/projects/py-c2-monitor) using the pygame framework updated to run with Python3. This library of code provides an Python API library to interact with a Concept 2 Rowing Ergometer PM3, PM4 or PM5 monitor[^note].
 
 "PyRow sends and receives information from the Ergometer using csafe commands or built in functions (listed below)."
 
