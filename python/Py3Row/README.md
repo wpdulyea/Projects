@@ -1,10 +1,9 @@
 # PyRow
 
-_NOTE: This code is currently under test and may not function as advertised.
-
 ## ABOUT
 
-Py3Row is taken from the [pyRow project](https://github.com/wemakewaves/PyRow) and updated to run on python3. Also included in this project is the [Py C2 Monitor](http://raspirowing.com/index.php/projects/py-c2-monitor) using the pygame framework updated to run with Python3. This library of code provides an Python API library to interact with a Concept 2 Rowing Ergometer PM3, PM4 or PM5 monitor.
+Py3Row is taken from the [pyRow project](https://github.com/wemakewaves/PyRow) and updated to run on python3. Also included in this project is the [Py C2 Monitor](http://raspirowing.com/index.php/projects/py-c2-monitor) using the pygame framework updated to run with Python3. This library of code provides an Python API library to interact with a Concept 2 Rowing Ergometer PM3, PM4 or PM5 monitor.[^1]
+
 "PyRow sends and receives information from the Ergometer using csafe commands or built in functions (listed below)."
 
 For an explanation of the csafe commands please use the following documentation:
@@ -30,20 +29,21 @@ PyRow has been tested on an Ubuntu machine with the software versions listed bel
 
 TBD
 
-Include PyRow in your code with the following line of code:
-`import pyrow`
-
 ## RUNNING
-Include PyRow in your code with the following line of code:
-`import pyrow`
+Include PyRow in your code with the following line of code: `import pyrow`
 
 `pyrow.find()` - returns an array of all the ergs currently connected to the computer
 
 ---
-`pyrow.pyrow(erg)` - creates an object for communicating with the erg, erg is obtained from the pyrow.find() function
-ex: creating a pyrow object from the first erg found
+
+`pyrow.pyrow(erg)` - creates an object for communicating with the erg.
+erg is obtained from the pyrow.find() function eg: creating a pyrow object from the first erg found
+
+'''python
 ergs = list(pyrow.find())
 erg = pyrow.pyrow(ergs[0])
+'''
+
 ---
 
 `pyrow.pyrow.getStatus()` - returns status of machine as a number
@@ -171,3 +171,7 @@ ex: getting pace and printing it out
 `pyrowlib/csafe_cmd.py` - converts between csafe commands and byte arrays for pyrow.py, user does not need to load this file directly
 
 `pyrowlib/csafe_dic.py` - contains dictionaries of the csafe commands to be used by csafe_cmd.py, user does not need to load this file directly
+
+## References
+[^note]:
+	This code is currently under test and may not function as advertised.
