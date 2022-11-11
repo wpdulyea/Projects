@@ -1,11 +1,29 @@
+"""
+Description:
+"""
+# -----------------------------------------------------------------------------
+#                               Safe Imports
+# -----------------------------------------------------------------------------
+# Standard
+from enum import IntEnum
+
+# Third party
+
+
+# Local packages
+
+# -----------------------------------------------------------------------------
+#                           Global definitions
+# -----------------------------------------------------------------------------
+
 # Unique Frame Flags
 eFSF = Extended_Frame_Start_Flag = 0xF0
 sFSF = Standard_Frame_Start_Flag = 0xF1
 SFF = Stop_Frame_Flag = 0xF2
 BSF = Byte_Stuffing_Flag = 0xF3
 
-# cmds['COMMAND_NAME'] = [0xCmd_Id, [Bytes, ...]]
 
+# Dictionary of cmds['COMMAND_NAME'] = [0xCmd_Id, [Byte(s), ...]]
 cmds = {}
 
 # Short Commands
@@ -36,35 +54,32 @@ cmds["CSAFE_GETCADENCE_CMD"] = [0xA7, []]
 cmds["CSAFE_GETUSERINFO_CMD"] = [0xAB, []]
 cmds["CSAFE_GETHRCUR_CMD"] = [0xB0, []]
 cmds["CSAFE_GETPOWER_CMD"] = [0xB4, []]
-# Long Commands
-cmds["CSAFE_AUTOUPLOAD_CMD"] = [0x01, [1]]  # Configuration (no affect)
-cmds["CSAFE_IDDIGITS_CMD"] = [0x10, [1]]  # Number of Digits
-cmds["CSAFE_SETTIME_CMD"] = [0x11, [1, 1, 1]]  # Hour, Minute, Seconds
-cmds["CSAFE_SETDATE_CMD"] = [0x12, [1, 1, 1]]  # Year, Month, Day
-cmds["CSAFE_SETTIMEOUT_CMD"] = [0x13, [1]]  # State Timeout
-cmds["CSAFE_SETUSERCFG1_CMD"] = [
-    0x1A,
-    [
-        0,
-    ],
-]  # PM3 Specific Command (length computed)
-cmds["CSAFE_SETTWORK_CMD"] = [0x20, [1, 1, 1]]  # Hour, Minute, Seconds
-cmds["CSAFE_SETHORIZONTAL_CMD"] = [0x21, [2, 1]]  # Distance, Units
-cmds["CSAFE_SETCALORIES_CMD"] = [
-    0x23,
-    [
-        2,
-    ],
-]  # Total Calories
-cmds["CSAFE_SETPROGRAM_CMD"] = [0x24, [1, 1]]  # Workout ID, N/A
-cmds["CSAFE_SETPOWER_CMD"] = [0x34, [2, 1]]  # Stroke Watts, Units
-cmds["CSAFE_GETCAPS_CMD"] = [
-    0x70,
-    [
-        1,
-    ],
-]  # Capability Code
 
+# Long Commands
+# Configuration (no affect)
+cmds["CSAFE_AUTOUPLOAD_CMD"] = [0x01, [1]]
+# Number of Digits
+cmds["CSAFE_IDDIGITS_CMD"] = [0x10, [1]]
+# Hour, Minute, Seconds
+cmds["CSAFE_SETTIME_CMD"] = [0x11, [1, 1, 1]]
+# Year, Month, Day
+cmds["CSAFE_SETDATE_CMD"] = [0x12, [1, 1, 1]]
+# State Timeout
+cmds["CSAFE_SETTIMEOUT_CMD"] = [0x13, [1]]
+# PM3 Specific Command (length computed)
+cmds["CSAFE_SETUSERCFG1_CMD"] = [0x1A, [0]]
+# Hour, Minute, Seconds
+cmds["CSAFE_SETTWORK_CMD"] = [0x20, [1, 1, 1]]
+# Distance, Units
+cmds["CSAFE_SETHORIZONTAL_CMD"] = [0x21, [2, 1]]
+# Total Calories
+cmds["CSAFE_SETCALORIES_CMD"] = [0x23, [2]]
+# Workout ID, N/A
+cmds["CSAFE_SETPROGRAM_CMD"] = [0x24, [1, 1]]
+# Stroke Watts, Units
+cmds["CSAFE_SETPOWER_CMD"] = [0x34, [2, 1]]
+# Capability Code
+cmds["CSAFE_GETCAPS_CMD"] = [0x70, [1]]
 # PM3 Specific Short Commands
 cmds["CSAFE_PM_GET_WORKOUTTYPE"] = [0x89, [], 0x1A]
 cmds["CSAFE_PM_GET_DRAGFACTOR"] = [0xC1, [], 0x1A]
@@ -367,42 +382,55 @@ resp[0x1A6C] = [
     [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
 ]  # Bytes read, data ...
 
-# Create a dictionary of the different status states
-STATE = {
-    0x00: "Error",
-    0x01: "Ready",
-    0x02: "Idle",
-    0x03: "Have ID",
-    0x04: "N/A",
-    0x05: "In Use",
-    0x06: "Pause",
-    0x07: "Finished",
-    0x08: "Manual",
-    0x09: "Offline",
-}
+# -----------------------------------------------------------------------------
+#                           State ENUMS
+# -----------------------------------------------------------------------------
+# Different status states
 
-STROKE = [
-    "Wait for min speed",
-    "Wait for acceleration",
-    "Drive",
-    "Dwelling",
-    "Recovery",
-]
 
-WORKOUT = [
-    "Waiting begin",
-    "Workout row",
-    "Countdown pause",
-    "Interval rest",
-    "Work time inverval",
-    "Work distance interval",
-    "Rest end time",
-    "Rest end distance",
-    "Time end rest",
-    "Distance end rest",
-    "Workout end",
-    "Workout terminate",
-    "Workout logged",
-    "Workout rearm",
-]
+class OPERATIONAL_STATE(IntEnum):
+    RESET = 0x00
+    READY = 0x01
+    WORKOUT = 0x02
+    WARMUP = 0x03
+    RACE = 0x04
+    POWEROFF = 0x05
+    PAUSE = 0x06
+    INVOKEBOOTLOADER = 0x07
+    POWEROFF_SHIP = 0x08
+    IDLE_CHARGE = 0x09
+    IDLE = 0x0A
+    MFGTEST = 0x0B
+    FWUPDATE = 0x0C
+    DRAGFACTOR = 0x0D
+    DFCALIBRATION = 0x64
 
+
+class STROKE_STATE(IntEnum):
+    WAITING_FOR_WHEEL_TO_REACH_MIN_SPEED_STATE = 0x00
+    WAITING_FOR_WHEEL_TO_ACCELERATE_STATE = 0x01
+    DRIVING_STATE = 0x02
+    DWELLING_AFTER_DRIVE_STATE = 0x03
+    RECOVERY_STATE = 0x04
+
+
+class ROWING_STATE(IntEnum):
+    INACTIVE = 0x00
+    ACTIVE = 0x01
+
+
+class WORKOUT_STATE(IntEnum):
+    WAITTOBEGIN = 0x00
+    WORKOUTROW = 0x01
+    COUNTDOWNPAUSE = 0x02
+    INTERVALREST = 0x03
+    INTERVALWORKTIME = 0x04
+    INTERVALWORKDISTANCE = 0x05
+    INTERVALRESTENDTOWORKTIME = 0x06
+    INTERVALRESTENDTOWORKDISTANCE = 0x07
+    INTERVALWORKTIMETOREST = 0x08
+    INTERVALWORKDISTANCETOREST = 0x09
+    WORKOUTEND = 0x0A
+    TERMINATE = 0x0B
+    WORKOUTLOGGED = 0x0C
+    REARM = 0x0D

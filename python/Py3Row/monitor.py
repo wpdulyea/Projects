@@ -29,7 +29,7 @@ from pyrowlib import pyrow
 # TOP LEVEL CONSTANTS
 WINDOWWIDTH = 1024
 WINDOWHEIGHT = 768
-GAMETITLE = "Concept2 Monitor"
+CAPTION = "Concept2 Monitor"
 # RGB Constants
 WHITE = [255, 255, 255]
 RED = [255, 0, 0]
@@ -61,11 +61,11 @@ def main():
     pygame.mouse.set_visible(False)
     displayFont = pygame.font.Font("fonts/digital-7.ttf", 180)
     display_smFont = pygame.font.Font("fonts/digital-7.ttf", 90)
-    titleFont = pygame.font.Font("fonts/256BYTES.TTF", 180)
+    # titleFont = pygame.font.Font("fonts/256BYTES.TTF", 180)
     smallFont = pygame.font.Font("fonts/256BYTES.TTF", 70)
     tinyFont = pygame.font.Font("fonts/256BYTES.TTF", 30)
     screen = pygame.display.set_mode((WINDOWWIDTH, WINDOWHEIGHT))
-    pygame.display.set_caption(GAMETITLE)
+    pygame.display.set_caption(CAPTION)
 
     ergs = list(pyrow.find())
     if len(ergs) == 0:
@@ -92,7 +92,7 @@ def main():
 
     # SPLASH SCREEN
     screen.blit(splash, (0, 0))
-    connectedText = tinyFont.render("* Monitor Connected", True, GREEN)
+    connectedText = tinyFont.render(f"{ergs[0].product} Monitor Connected", True, GREEN)
     disconnectedText = tinyFont.render(
         "* Monitor Connection Lost - Re-Start!", True, RED
     )
@@ -180,77 +180,48 @@ def main():
                 sys.exit(0)
 
         monitor = erg.get_monitor()
+        ergData = erg.get_erg()
         result = erg.send(command)
+
+        cmeters = result["CSAFE_PM_GET_WORKDISTANCE"][0] / 10
+        calhr = monitor["calhr"]  # pre processed data
+        calhr = str(int(math.ceil(calhr)))
+        calories = monitor["calories"]
+
+        pace = monitor["pace"]
+        pace_mins, pace_secs = divmod(
+            pace, 60
+        )  # python math function to get mins and secs
+
+        wtime = monitor["time"]
+        wtime_mins, wtime_secs = divmod(wtime, 60)
+        # split time string to get tenths array pos[1]
+        wtime_tenths = str(wtime).rsplit(".", 1)[1]
+        # add following zero to exact tenths eg. .60, .70
+        if len(wtime_tenths) == 1:
+            wtime_tenths = wtime_tenths + "0"
+
+        srate = monitor["spm"]
+        hrate = monitor["heartrate"]
+        power = monitor["power"]
 
         # output to terminal
         if view == 0 or view == 1:
+
+            # Print the data
             print("-------------")
-            cmeters = result["CSAFE_PM_GET_WORKDISTANCE"][0] / 10
-            print("Meters = " + str(cmeters))
-
-            calhr = monitor["calhr"]  # pre processed data
-            calhr = str(int(math.ceil(calhr)))
-            print(str(calhr) + " cal/hr")
-
-            calories = monitor["calories"]
-            print(str(calories) + " calories")
-
-            pace = monitor["pace"]
-            pace_mins, pace_secs = divmod(
-                pace, 60
-            )  # python math function to get mins and secs
+            print("%02d:%02d" % (wtime_mins, wtime_secs) + " M:S", end=" | ")
+            print(str(srate) + " s/m")
             print("%02d:%02d (/500m)" % (pace_mins, pace_secs))
-
-            wtime = monitor["time"]
-            print(str(wtime) + " time(secs)")
-            wtime_mins, wtime_secs = divmod(wtime, 60)
-            wtime_tenths = str(wtime).rsplit(".", 1)[
-                1
-            ]  # split time string to get tenths array pos[1]
-
-            if (
-                len(wtime_tenths) == 1
-            ):  # add following zero to exact tenths eg. .60, .70
-                wtime_tenths = wtime_tenths + "0"
-
-            print(wtime_tenths + " tenths")
-            print("%02d:%02d" % (wtime_mins, wtime_secs) + " M:S")
-
-            srate = monitor["spm"]
-            print(str(srate) + " spm")
-
-            hrate = monitor["heartrate"]
+            print("%04d m" % (int(cmeters)), end=" | ")
             print(str(hrate) + " bpm")
+            print(str(calhr) + " cal/hr")
+            print(str(calories) + " calories")
+            print(str(wtime) + " time(secs)")
+            print(wtime_tenths + " tenths")
 
             # print("Serial = " + str(monitor["serial"]))
             # print "Display = " + str(monitor['display'])
-            print("", end='\r'*9)
-        if view == 2:
-            print(counter)
-            power = monitor["power"]
-            # force plot loop
-            forceplot = erg.get_force_plot()
-            # Loop while waiting for drive
-            while forceplot["strokestate"] != 2:
-                forceplot = erg.get_force_plot()
-
-            # Record force data during the drive
-            force = forceplot[
-                "forceplot"
-            ]  # start of pull (when strokestate first changed to 2)
-            monitor = erg.get_monitor()  # get monitor data for start of stroke
-            # Loop during drive
-            while forceplot["strokestate"] == 2:
-                forceplot = erg.get_force_plot()
-                force.extend(forceplot["forceplot"])
-            else:  # Get force data from end of stroke
-                forceplot = erg.get_force_plot()
-                force.extend(forceplot["forceplot"])
-
-            forcedata = ",".join([str(f) for f in force])
-            print(forcedata)
-            print(sample)
-            print(str(power) + "W")
 
         # output to pygame screen
         if view == 0:
@@ -336,6 +307,12 @@ def main():
             pygame.display.update()
 
         if view == 2:
+            force = erg.get_forceplot_data()
+            forcedata = ",".join([str(f) for f in force])
+
+            print(str(power) + "W")
+            print(forcedata)
+
             plot_col_picker = counter
             if counter == 0:  # 5 visible force curves before clearing screen
                 screen.fill(GREY)
@@ -364,7 +341,6 @@ def main():
                 elif plot_col_picker == 4:  # black
                     screen.blit(plotter_black, (sample, 735 - (f * 2.52)))
 
-                # screen.blit(plotter,(sample,735-(f*2.52)))
                 """
                 y_axis max height (758) / max force (300) = 2.52
                 (each force unit is 2.52 pixels on y axis) minus from 735
@@ -393,8 +369,6 @@ def main():
                 screen.blit(powerText, (700, 340))
 
             pygame.display.update()
-
-        # pygame.display.update() either update all views here or update after each view
 
     # handle end of workout
     while game_over is True:

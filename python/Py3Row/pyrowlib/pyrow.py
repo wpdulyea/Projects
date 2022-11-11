@@ -82,12 +82,17 @@ class pyrow(object):
 
         configuration = self.erg[0]
         iface = configuration[(0, 0)]
+
         self.inEndpoint = iface[0].bEndpointAddress
         self.outEndpoint = iface[1].bEndpointAddress
 
         self.__lastsend = datetime.datetime.now()
+        # Collect forcedata
+        self.__forcedata = {}
 
-    def __checkvalue(self, value: int, label: str, minimum: int, maximum: int) -> bool:
+    def __checkvalue(
+        self, value: int, label: str, minimum: int, maximum: int
+    ) -> bool:
         """
         Checks that value is an integer and within the specified range
         """
@@ -123,15 +128,12 @@ class pyrow(object):
             "CSAFE_GETHRCUR_CMD",
         ]
 
-        if forceplot:
-            command.extend(
-                ["CSAFE_PM_GET_FORCEPLOTDATA", 32, "CSAFE_PM_GET_STROKESTATE"]
-            )
         results = self.send(command)
 
         monitor = {}
         monitor["time"] = (
-            results["CSAFE_PM_GET_WORKTIME"][0] + results["CSAFE_PM_GET_WORKTIME"][1]
+            results["CSAFE_PM_GET_WORKTIME"][0]
+            + results["CSAFE_PM_GET_WORKTIME"][1]
         ) / 100.0
 
         monitor["distance"] = (
@@ -146,7 +148,9 @@ class pyrow(object):
             monitor["pace"] = (
                 (2.8 / results["CSAFE_GETPOWER_CMD"][0]) ** (1.0 / 3)
             ) * 500
-            monitor["calhr"] = results["CSAFE_GETPOWER_CMD"][0] * (4.0 * 0.8604) + 300.0
+            monitor["calhr"] = (
+                results["CSAFE_GETPOWER_CMD"][0] * (4.0 * 0.8604) + 300.0
+            )
         else:
             monitor["pace"], monitor["calhr"] = 0, 0
 
@@ -154,12 +158,9 @@ class pyrow(object):
         monitor["heartrate"] = results["CSAFE_GETHRCUR_CMD"][0]
 
         if forceplot:
-            # get amount of returned data in bytes
-            datapoints = results["CSAFE_PM_GET_FORCEPLOTDATA"][0] / 2
-            monitor["forceplot"] = results["CSAFE_PM_GET_FORCEPLOTDATA"][
-                1 : (datapoints + 1)
-            ]
-            monitor["strokestate"] = results["CSAFE_PM_GET_STROKESTATE"][0]
+            # Collect force plot data and stroke state
+            data = self.get_forceplot_data()
+            monitor["forceplot"] = data
 
         monitor["status"] = results["CSAFE_GETSTATUS_CMD"][0] & 0xF
 
@@ -169,22 +170,63 @@ class pyrow(object):
         """
         Returns force plot data and stroke state
         """
-
+        forceplot = {}
+        datapoints = 1
         command = [
             "CSAFE_PM_GET_FORCEPLOTDATA",
             32,
             "CSAFE_PM_GET_STROKESTATE",
         ]
+
         results = self.send(command)
 
-        forceplot = {}
-        datapoints = results["CSAFE_PM_GET_FORCEPLOTDATA"][0] // 2
-        forceplot["forceplot"] = results["CSAFE_PM_GET_FORCEPLOTDATA"][1:(datapoints + 1)]
+        datapoints += results["CSAFE_PM_GET_FORCEPLOTDATA"][0] // 2
+        forceplot["forceplot"] = results["CSAFE_PM_GET_FORCEPLOTDATA"][
+            1:datapoints
+        ]
         forceplot["strokestate"] = results["CSAFE_PM_GET_STROKESTATE"][0]
-
         forceplot["status"] = results["CSAFE_GETSTATUS_CMD"][0] & 0xF
 
         return forceplot
+
+    def get_forceplot_data(self) -> dict:
+        """
+        Returns cumlative forceplot data after polling successive calls to
+        get_force_plot.
+        """
+        forceplot = {}
+        force = []
+        StrokeState = csafe_cmd.csafe_dic.STROKE_STATE
+        RowState = csafe_cmd.csafe_dic.ROWING_STATE
+        # Break out of loop after transitioning from Dwelling to Recovery
+        trans2recovery = False
+        while True:
+            forceplot = self.get_force_plot()
+            if forceplot["status"] == RowState.INACTIVE:
+                break
+            match forceplot["strokestate"]:
+                case StrokeState.WAITING_FOR_WHEEL_TO_REACH_MIN_SPEED_STATE:
+                    continue
+                case StrokeState.WAITING_FOR_WHEEL_TO_ACCELERATE_STATE:
+                    continue
+                case StrokeState.DRIVING_STATE:
+                    force.extend(forceplot["forceplot"])
+                    continue
+                case StrokeState.DWELLING_AFTER_DRIVE_STATE:
+                    trans2recovery = True
+                    force.extend(forceplot["forceplot"])
+                    continue
+                case StrokeState.RECOVERY_STATE:
+                    if trans2recovery is True:
+                        force.extend(forceplot["forceplot"])
+                        break
+                    continue
+                case _:
+                    raise ValueError(
+                            f'No match state found: {forceplot["strokestate"]}'
+                    )
+
+        return force
 
     def get_workout(self) -> dict:
         """
@@ -205,7 +247,9 @@ class pyrow(object):
         workoutdata["type"] = results["CSAFE_PM_GET_WORKOUTTYPE"][0]
         workoutdata["state"] = results["CSAFE_PM_GET_WORKOUTSTATE"][0]
         workoutdata["inttype"] = results["CSAFE_PM_GET_INTERVALTYPE"][0]
-        workoutdata["intcount"] = results["CSAFE_PM_GET_WORKOUTINTERVALCOUNT"][0]
+        workoutdata["intcount"] = results["CSAFE_PM_GET_WORKOUTINTERVALCOUNT"][
+            0
+        ]
 
         workoutdata["status"] = results["CSAFE_GETSTATUS_CMD"][0] & 0xF
 
@@ -265,7 +309,7 @@ class pyrow(object):
         now = datetime.datetime.now()  # Get current date and time
 
         command = ["CSAFE_SETTIME_CMD", now.hour, now.minute, now.second]
-        command.extend(["CSAFE_SETDATE_CMD", (now.year - 1900), now.month, now.day])
+        command.extend(["CSAFE_SETDATE_CMD", now.year, now.month, now.day])
 
         self.send(command)
 
@@ -296,12 +340,18 @@ class pyrow(object):
                 workout_time.insert(0, 0)
             if len(workout_time) == 2:
                 # if no hours in workout_time then pad hours
-                workout_time.insert(0, 0)  # if no hours in workout_time then pad hours
+                workout_time.insert(
+                    0, 0
+                )  # if no hours in workout_time then pad hours
             self.__checkvalue(workout_time[0], "Time Hours", 0, 9)
             self.__checkvalue(workout_time[1], "Time Minutes", 0, 59)
             self.__checkvalue(workout_time[2], "Time Seconds", 0, 59)
 
-            if workout_time[0] == 0 and workout_time[1] == 0 and workout_time[2] < 20:
+            if (
+                workout_time[0] == 0
+                and workout_time[1] == 0
+                and workout_time[2] < 20
+            ):
                 # checks if workout is < 20 seconds
                 raise ValueError("Workout too short")
 
@@ -316,7 +366,9 @@ class pyrow(object):
 
         elif distance is not None:
             self.__checkvalue(distance, "Distance", 100, 50000)
-            command.extend(["CSAFE_SETHORIZONTAL_CMD", distance, 36])  # 36 = meters
+            command.extend(
+                ["CSAFE_SETHORIZONTAL_CMD", distance, 36]
+            )  # 36 = meters
 
         # Set Split
         if split is not None:
@@ -324,7 +376,9 @@ class pyrow(object):
                 split = int(split * 100)
                 # total workout workout_time (1 sec)
                 time_raw = (
-                    workout_time[0] * 3600 + workout_time[1] * 60 + workout_time[2]
+                    workout_time[0] * 3600
+                    + workout_time[1] * 60
+                    + workout_time[2]
                 )
                 # split workout_time that will occur 30 workout_times (.01 sec)
                 minsplit = int(time_raw / 30 * 100 + 0.5)
@@ -336,7 +390,9 @@ class pyrow(object):
                 minsplit = int(
                     distance / 30 + 0.5
                 )  # split distance that will occur 30 workout_times (m)
-                self.__checkvalue(split, "Split distance", max(100, minsplit), distance)
+                self.__checkvalue(
+                    split, "Split distance", max(100, minsplit), distance
+                )
                 command.extend(["CSAFE_PM_SET_SPLITDURATION", 128, split])
             else:
                 raise ValueError("Cannot set split for current goal")
@@ -352,13 +408,16 @@ class pyrow(object):
         if program is None:
             program = 0
 
-        command.extend(["CSAFE_SETPROGRAM_CMD", program, 0, "CSAFE_GOINUSE_CMD"])
+        command.extend(
+            ["CSAFE_SETPROGRAM_CMD", program, 0, "CSAFE_GOINUSE_CMD"]
+        )
 
         self.send(command)
 
     def send(self, message):
         """
-        Converts and sends message to erg; receives, converts, and returns ergs response
+        Converts and sends message to erg; receives, converts
+        and returns response.
         """
 
         # Checks that enough time has passed since the last message was sent,
@@ -370,9 +429,9 @@ class pyrow(object):
             time.sleep(MIN_FRAME_GAP - deltaraw)
 
         # convert message to byte array
-        csafe = csafe_cmd.write(message)
+        csafe = csafe_cmd.encode(message)
         # sends message to erg and records length of message
-        length = self.erg.write(self.outEndpoint, csafe, timeout=2000)
+        length = self.erg.encode(self.outEndpoint, csafe, timeout=2000)
         # records time when message was sent
         self.__lastsend = datetime.datetime.now()
 
@@ -380,8 +439,10 @@ class pyrow(object):
         while not response:
             try:
                 # recieves byte array from erg
-                transmission = self.erg.read(self.inEndpoint, length, timeout=2000)
-                response = csafe_cmd.read(transmission)
+                transmission = self.erg.decode(
+                    self.inEndpoint, length, timeout=2000
+                )
+                response = csafe_cmd.decode(transmission)
             except Exception as e:
                 raise e
                 # Replace with error or let error trigger?

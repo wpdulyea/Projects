@@ -1,4 +1,10 @@
-# ToDo: change print statments to proper errors
+"""
+Description:
+"""
+# -----------------------------------------------------------------------------
+#                               Safe Imports
+# -----------------------------------------------------------------------------
+# local
 from . import csafe_dic
 
 
@@ -36,8 +42,10 @@ def __bytes2ascii(raw_bytes):
     return word
 
 
-# for sending
-def write(arguments):
+def encode(arguments: list) -> list:
+    """
+    Encode message.
+    """
 
     # priming variables
     i = 0
@@ -78,14 +86,18 @@ def write(arguments):
 
         # create or extend wrapper
         if len(cmdprop) == 3:  # checks if command needs a wrapper
-            if wrapper == cmdprop[2]:  # checks if currently in the same wrapper
+            if (
+                wrapper == cmdprop[2]
+            ):  # checks if currently in the same wrapper
                 wrapped.extend(command)
             else:  # creating a new wrapper
                 wrapped = command
                 wrapper = cmdprop[2]
                 maxresponse += 2
 
-            command = []  # clear command to prevent it from getting into message
+            command = (
+                []
+            )  # clear command to prevent it from getting into message
 
         # max message length
         cmdid = cmdprop[0] | (wrapper << 8)
@@ -129,7 +141,7 @@ def write(arguments):
 
     # check for frame size (96 bytes)
     if len(message) > 96:
-        print("Message is too long: " + len(message))
+        raise Exception("Message is too long: " + len(message))
 
     # report IDs
     maxmessage = max(len(message) + 1, maxresponse)
@@ -144,139 +156,152 @@ def write(arguments):
         message.insert(0, 0x02)
         message += [0] * (121 - len(message))
         if maxresponse > 121:
-            print(
+            raise UserWarning(
                 "Response may be too long to recieve.  Max possible length "
                 + str(maxresponse)
             )
     else:
-        print("Message too long.  Message length " + str(len(message)))
+        raise Exception(
+            "Message too long.  Message length " + str(len(message))
+        )
         message = []
 
     return message
 
 
-def __check_message(message):
+def __verify_message(message: list) -> list:
     # prime variables
     i = 0
     checksum = 0
 
-    # checksum and unstuff
-    while i < len(message):
-        # byte unstuffing
-        if message[i] == csafe_dic.Byte_Stuffing_Flag:
-            stuffvalue = message.pop(i + 1)
-            message[i] = 0xF0 | stuffvalue
+    try:
+        # checksum and unstuff
+        while i < len(message):
+            # byte unstuffing
+            if message[i] == csafe_dic.Byte_Stuffing_Flag:
+                stuffvalue = message.pop(i + 1)
+                message[i] = 0xF0 | stuffvalue
 
-        # calculate checksum
-        checksum = checksum ^ message[i]
+            # calculate checksum
+            checksum = checksum ^ message[i]
 
-        i = i + 1
+            i = i + 1
 
-    # checks checksum
-    if checksum != 0:
-        print("Checksum error")
-        return []
+        # checks checksum
+        if checksum != 0:
+            message = []
+            raise ValueError("Checksum error")
 
-    # remove checksum from  end of message
-    del message[-1]
+        # remove checksum from  end of message
+        del message[-1]
+    except Exception as err:
+        print(str(err))
+    finally:
+        return message
 
-    return message
 
+def decode(transmission: list) -> list:
+    """
+    Decode recieved messages.
+    """
 
-# for recieving!!
-def read(transmission):
     # prime variables
     message = []
     stopfound = False
 
-    # reportid = transmission[0]
-    startflag = transmission[1]
+    try:
+        # reportid = transmission[0]
+        startflag = transmission[1]
 
-    if startflag == csafe_dic.Extended_Frame_Start_Flag:
-        # destination = transmission[2]
-        # source = transmission[3]
-        j = 4
-    elif startflag == csafe_dic.Standard_Frame_Start_Flag:
-        j = 2
-    else:
-        print("No Start Flag found.")
-        return []
+        if startflag == csafe_dic.Extended_Frame_Start_Flag:
+            # destination = transmission[2]
+            # source = transmission[3]
+            j = 4
+        elif startflag == csafe_dic.Standard_Frame_Start_Flag:
+            j = 2
+        else:
+            message = []
+            raise ValueError("No Start Flag found.")
 
-    while j < len(transmission):
-        if transmission[j] == csafe_dic.Stop_Frame_Flag:
-            stopfound = True
-            break
-        message.append(transmission[j])
-        j += 1
+        while j < len(transmission):
+            if transmission[j] == csafe_dic.Stop_Frame_Flag:
+                stopfound = True
+                break
+            message.append(transmission[j])
+            j += 1
 
-    if not stopfound:
-        print("No Stop Flag found.")
-        return []
+        if not stopfound:
+            message = []
+            raise ValueError("No Stop Flag found.")
 
-    message = __check_message(message)
-    status = message.pop(0)
+        message = __verify_message(message)
+        status = message.pop(0)
 
-    # prime variables
-    response = {
-        "CSAFE_GETSTATUS_CMD": [
-            status,
-        ]
-    }
-    k = 0
-    wrapend = -1
-    wrapper = 0x0
-
-    # loop through complete frames
-    while k < len(message):
-        result = []
-
-        # get command name
-        msgcmd = message[k]
-        if k <= wrapend:
-            msgcmd = wrapper | msgcmd  # check if still in wrapper
-        msgprop = csafe_dic.resp[msgcmd]
-        k = k + 1
-
-        # get data byte count
-        bytecount = message[k]
-        k = k + 1
-
-        # if wrapper command then gets command in wrapper
-        if msgprop[0] == "CSAFE_SETUSERCFG1_CMD":
-            wrapper = message[k - 2] << 8
-            wrapend = k + bytecount - 1
-            if bytecount:  # If wrapper length != 0
-                msgcmd = wrapper | message[k]
-                msgprop = csafe_dic.resp[msgcmd]
-                k = k + 1
-                bytecount = message[k]
-                k = k + 1
-
-        # special case for capability code, response lengths differ based off capability code
-        if msgprop[0] == "CSAFE_GETCAPS_CMD":
-            msgprop[1] = [
-                1,
-            ] * bytecount
-
-        # special case for get id, response length is variable
-        if msgprop[0] == "CSAFE_GETID_CMD":
-            msgprop[1] = [
-                (-bytecount),
+        # prime variables
+        response = {
+            "CSAFE_GETSTATUS_CMD": [
+                status,
             ]
+        }
+        k = 0
+        wrapend = -1
+        wrapper = 0x0
 
-        # checking that the recieved data byte is the expected length, sanity check
-        if abs(sum(msgprop[1])) != 0 and bytecount != abs(sum(msgprop[1])):
-            print("Warning: bytecount is an unexpected length")
+        # loop through complete frames
+        while k < len(message):
+            result = []
 
-        # extract values
-        for numbytes in msgprop[1]:
-            raw_bytes = message[k : k + abs(numbytes)]
-            value = (
-                __bytes2int(raw_bytes) if numbytes >= 0 else __bytes2ascii(raw_bytes)
-            )
-            result.append(value)
-            k = k + abs(numbytes)
+            # get command name
+            msgcmd = message[k]
+            if k <= wrapend:
+                msgcmd = wrapper | msgcmd  # check if still in wrapper
+            msgprop = csafe_dic.resp[msgcmd]
+            k = k + 1
 
-        response[msgprop[0]] = result
+            # get data byte count
+            bytecount = message[k]
+            k = k + 1
 
-    return response
+            # if wrapper command then gets command in wrapper
+            if msgprop[0] == "CSAFE_SETUSERCFG1_CMD":
+                wrapper = message[k - 2] << 8
+                wrapend = k + bytecount - 1
+                if bytecount:  # If wrapper length != 0
+                    msgcmd = wrapper | message[k]
+                    msgprop = csafe_dic.resp[msgcmd]
+                    k = k + 1
+                    bytecount = message[k]
+                    k = k + 1
+
+            # special case for capability code, response lengths differ based off capability code
+            if msgprop[0] == "CSAFE_GETCAPS_CMD":
+                msgprop[1] = [
+                    1,
+                ] * bytecount
+
+            # special case for get id, response length is variable
+            if msgprop[0] == "CSAFE_GETID_CMD":
+                msgprop[1] = [
+                    (-bytecount),
+                ]
+
+            # checking that the recieved data byte is the expected length, sanity check
+            if abs(sum(msgprop[1])) != 0 and bytecount != abs(sum(msgprop[1])):
+                raise ValueError("Warning: bytecount is an unexpected length")
+
+            # extract values
+            for numbytes in msgprop[1]:
+                raw_bytes = message[k : k + abs(numbytes)]
+                value = (
+                    __bytes2int(raw_bytes)
+                    if numbytes >= 0
+                    else __bytes2ascii(raw_bytes)
+                )
+                result.append(value)
+                k = k + abs(numbytes)
+
+            response[msgprop[0]] = result
+    except Exception as err:
+        print(str(err))
+    finally:
+        return response
