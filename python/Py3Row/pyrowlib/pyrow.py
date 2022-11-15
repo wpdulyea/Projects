@@ -50,7 +50,7 @@ def find() -> iter:
 # -----------------------------------------------------------------------------
 #                           Classes
 # -----------------------------------------------------------------------------
-class pyrow(object):
+class PyRow(object):
     def __init__(self: object, erg: object):
         """
         Configures usb connection and sets erg value

@@ -70,7 +70,7 @@ def main():
     ergs = list(pyrow.find())
     if len(ergs) == 0:
         exit("No ergs found.")
-    erg = pyrow.pyrow(ergs[0])
+    erg = pyrow.PyRow(ergs[0])
     if erg is None:
         exit("Failed to create erg connection")
     else:
