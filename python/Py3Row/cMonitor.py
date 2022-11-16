@@ -37,13 +37,9 @@ Description:
 # Standard
 import sys
 import os
-import re
-import math
-from time import sleep
 from traceback import format_exc
 from random import randrange, sample, choice, randint, uniform
 from datetime import datetime
-from threading import Thread
 from multiprocessing import Process
 import curses
 
@@ -65,38 +61,34 @@ layouts = [
 # -----------------------------------------------------------------------------
 #                               Classes
 # -----------------------------------------------------------------------------
-class Egometer(object):
-    """ """
-
-    def __init__(self):
-        """ """
-        ...
-
-
 class Window(object):
     """
     Base class for a subwindow.
     """
 
-    def __init__(
-        self, caption: str, attr: int, h: int, w: int, x: int, y: int
-    ):
+    def __init__(self, caption: str, attr: int, cords: list):
         self._caption = caption
         self._capt_attr = attr
-        self._width = w
-        self._height = h
-        self._y_pos = y
-        self._x_pos = x
+        self._cords = cords
 
         try:
-
-            self._window = curses.newwin(h, w, y, x)
+            self._window = curses.newwin(*cords)
             if "" != caption:
                 self._add_caption()
 
             self._window.refresh()
         except Exception as err:
             raise err
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        if self._window is not None:
+            self._window.erase()
+
+    def get_cordinates(self):
+        return self._cords
 
     def _add_caption(self):
         try:
@@ -138,35 +130,19 @@ class Window(object):
 
     def redraw(self):
         try:
-            # self._window.clear()
+            self._window.clear()
             self._window.box()
             self._add_caption()
             self._add_label()
 
-            # Might need to add some code to repaint the window on terminal resize
-            # if supported.
+            # Might need to add some code to repaint the window on terminal
+            # resize if supported.
             self._window.refresh()
         except Exception as err:
             raise err
 
     def refresh(self):
         self._window.refresh()
-
-
-class Element(Window):
-    """
-    Represents each element of displayed data for PM Monitor.
-    """
-
-    _value = 0
-    _attr = 0
-
-    def refresh_value(self, value):
-        self._value = value
-        self.add_win_label(value, self._attr)
-
-    def get_value(self):
-        return self._value
 
 
 class ForceCurve(Window):
@@ -212,9 +188,10 @@ class ForceCurve(Window):
         """
         if self.lastPlot is not empty, repaint the contents to the window
         """
+        # ToDo: This may not work if window resizing is added.
         for plot in self._lastPlot[0 : len(self._lastPlot)]:
             for curve in plot:
-                #                    [y_pos,    x_pos,        char, colour_attr]
+                # [y_pos, x_pos, char, colour_attr]
                 self.window.addstr(curve[0], curve[1], self._pchar, curve[2])
 
 
@@ -228,7 +205,7 @@ def conn2erg():
     """
     erg = None
     try:
-        ergs = list(usberg.find())
+        ergs = list(pyrow.find())
         if len(ergs) == 0:
             raise Exception("No ergs found.")
         elif len(ergs) > 1:
@@ -242,12 +219,12 @@ def conn2erg():
         if erg is None:
             raise Exception("Failed to create erg.")
     except Exception as err:
-        print(str(err))
+        raise err
     finally:
         return erg
 
 
-def read_inputs():
+def parse_options():
     from argparse import ArgumentParser
 
     res = None
@@ -303,29 +280,30 @@ def main(stdscr):
     curses.init_pair(5, curses.COLOR_WHITE, colors[4])
     curses.init_pair(6, curses.COLOR_WHITE, colors[5])
 
+    # Monitor windows
+    tet_win = None
+    spm_win = None
+    splits_win = None
+    tm_win = None
+    hr_win = None
+    fc_win = None
+
+    tet_cords = []
+    spm_cords = []
+    splits_cords = []
+    tm_cords = []
+    hr_cords = []
+    fc_cords = []
+
+    tet_caption = "Total Elapsed Time"
+    spm_caption = "Stroke Per Minute"
+    splits_caption = "Splits (Time per 500m)"
+    tm_caption = "Total Meters"
+    hr_caption = "Heart Rate"
+    fc_caption = "Force Curve"
+
     caughtExceptions = ""
     try:
-        window1 = []
-        window2 = []
-        window3 = []
-        window4 = []
-        window5 = []
-        window6 = []
-
-        window1Obj = None
-        window2Obj = None
-        window3Obj = None
-        window4Obj = None
-        window5Obj = None
-        window6Obj = None
-
-        window1Caption = "Total Elapsed Time"
-        window2Caption = "Stroke Per Minute"
-        window3Caption = "Splits (Time per 500m)"
-        window4Caption = "Total Meters"
-        window5Caption = "Heart Rate"
-        window6Caption = "Force Curve"
-
         # Window dimensions will be proportinally based
         # as illustgrated in top of file.
         #         y,   x,   w,   h
@@ -337,178 +315,154 @@ def main(stdscr):
         # Win-5 = 3/7, 2/3, 1/3, 1/7
         # Win-6 = 4/7, 0,   3/3, 3/7
         #
-        minWindowWidth = curses.COLS * 1 // 3
-        maxWindowWidth = curses.COLS * 2 // 3
-        minWindowHeight = curses.LINES * 1 // 7
-        maxWindowHeight = curses.LINES * 3 // 7
+        minWidth = curses.COLS * 1 // 3
+        maxWidth = curses.COLS * 2 // 3
+        minHeight = curses.LINES * 1 // 7
+        maxHeight = curses.LINES * 3 // 7
 
         # Select a layout.
         chosenLayout = layouts[0]
         match chosenLayout:
             case "Standard with force curve":
-                # Windows 1 and 2 will be the top, Window 3 will be the bottom.
-                window1 = [0, 0, curses.COLS - minWindowWidth, minWindowHeight]
-                window2 = [0, window1[2], minWindowWidth, minWindowHeight]
-                window3 = [
-                    minWindowHeight,
-                    0,
+                # Windows [height, width, y, x]
+                tet_cords = [minHeight, curses.COLS - minWidth, 0, 0]
+                spm_cords = [minHeight, minWidth, 0, tet_cords[1]]
+                splits_cords = [
+                    minHeight * 2,
                     curses.COLS,
-                    minWindowHeight * 2,
-                ]
-                window4 = [
-                    minWindowHeight * 3,
+                    minHeight,
                     0,
-                    maxWindowWidth,
-                    minWindowHeight,
                 ]
-                window5 = [
-                    minWindowHeight * 3,
-                    maxWindowWidth,
-                    curses.COLS - maxWindowWidth,
-                    minWindowHeight,
-                ]
-                window6 = [
-                    minWindowHeight * 4,
+                tm_cords = [
+                    minHeight,
+                    maxWidth,
+                    maxHeight - 1,
                     0,
+                ]
+                hr_cords = [
+                    minHeight,
+                    curses.COLS - maxWidth,
+                    maxHeight - 1,
+                    maxWidth,
+                ]
+                fc_cords = [
+                    curses.LINES - minHeight * 4,
                     curses.COLS,
-                    curses.LINES - minWindowHeight * 4,
+                    minHeight * 4,
+                    0,
                 ]
 
-                window6Caption = chosenLayout + " - Press a key to quit."
+                Exit_Caption = chosenLayout + " - Press a key to quit."
             case _:
                 raise Exception("oops!, no mtching case")
 
-        # SETUP PM VARS
+        # PM vars
         total_meters = 0
-        spm = 0
         pace_mins = 0
         pace_secs = 0
-        wtime = 0
         wtime_mins = 0
         wtime_secs = 0
         hrate = 0
         srate = 0
-        calhr = 0
-        calories = 0
-        # Create and refresh each window. Put the caption 2 lines up from bottom
-        # in case it wraps. Putting it on the last line with no room to wrap (if
-        # the window is too narrow for the text) will cause an exception.
-        window1Obj = Window(
-            window1Caption,
+
+        # Create each window to display erg data.
+        tet_win = Window(
+            tet_caption,
             curses.color_pair(1) | curses.A_BOLD,
-            window1[3],
-            window1[2],
-            window1[1],
-            window1[0],
+            tet_cords,
         )
-        window1Obj.set_bkgd(" ", curses.color_pair(1) | curses.A_BOLD)
-        window1Obj.add_win_label(
+        tet_win.set_bkgd(" ", curses.color_pair(1) | curses.A_BOLD)
+        tet_win.add_win_label(
             "%.2d:%.2d" % (wtime_mins, wtime_secs),
             curses.color_pair(1) | curses.A_BOLD,
         )
-        window1Obj.refresh()
+        tet_win.refresh()
 
-        window2Obj = Window(
-            window2Caption,
+        spm_win = Window(
+            spm_caption,
             curses.color_pair(2) | curses.A_BOLD,
-            window2[3],
-            window2[2],
-            window2[1],
-            window2[0],
+            spm_cords,
         )
-        window2Obj.set_bkgd(" ", curses.color_pair(2) | curses.A_BOLD)
-        window2Obj.add_win_label(
+        spm_win.set_bkgd(" ", curses.color_pair(2) | curses.A_BOLD)
+        spm_win.add_win_label(
             "%.2d /spm" % (srate), curses.color_pair(2) | curses.A_BOLD
         )
-        window2Obj.refresh()
+        spm_win.refresh()
 
-        window3Obj = Window(
-            window3Caption,
+        splits_win = Window(
+            splits_caption,
             curses.color_pair(3) | curses.A_BOLD,
-            window3[3],
-            window3[2],
-            window3[1],
-            window3[0],
+            splits_cords,
         )
-        window3Obj.set_bkgd(" ", curses.color_pair(3) | curses.A_BOLD)
-        window3Obj.add_win_label(
+        splits_win.set_bkgd(" ", curses.color_pair(3) | curses.A_BOLD)
+        splits_win.add_win_label(
             "%.2d:%.2d /500m" % (pace_mins, pace_secs),
             curses.color_pair(3) | curses.A_BOLD,
         )
-        window3Obj.refresh()
+        splits_win.refresh()
 
-        window4Obj = Window(
-            window4Caption,
+        tm_win = Window(
+            tm_caption,
             curses.color_pair(4) | curses.A_BOLD,
-            window4[3],
-            window4[2],
-            window4[1],
-            window4[0],
+            tm_cords,
         )
-        window4Obj.set_bkgd(" ", curses.color_pair(4) | curses.A_BOLD)
-        window4Obj.add_win_label(
+        tm_win.set_bkgd(" ", curses.color_pair(4) | curses.A_BOLD)
+        tm_win.add_win_label(
             "%.4d m" % (total_meters), curses.color_pair(4) | curses.A_BOLD
         )
-        window4Obj.refresh()
+        tm_win.refresh()
 
-        window5Obj = Window(
-            window5Caption,
+        hr_win = Window(
+            hr_caption,
             curses.color_pair(5) | curses.A_BOLD,
-            window5[3],
-            window5[2],
-            window5[1],
-            window5[0],
+            hr_cords,
         )
-        window5Obj.set_bkgd(" ", curses.color_pair(5) | curses.A_BOLD)
-        window5Obj.add_win_label(
+        hr_win.set_bkgd(" ", curses.color_pair(5) | curses.A_BOLD)
+        hr_win.add_win_label(
             "%.3d bpm" % (hrate), curses.color_pair(5) | curses.A_BOLD
         )
-        window5Obj.refresh()
+        hr_win.refresh()
 
-        window6Obj = ForceCurve(
-            window6Caption,
+        fc_win = ForceCurve(
+            fc_caption,
             curses.color_pair(6) | curses.A_BOLD,
-            window6[3],
-            window6[2],
-            window6[1],
-            window6[0],
+            fc_cords,
         )
-        window6Obj.set_bkgd(" ", curses.color_pair(6) | curses.A_BOLD)
-        window6Obj.add_win_label("Watts", curses.color_pair(6) | curses.A_BOLD)
-        window6Obj.refresh()
+        fc_win.set_bkgd(" ", curses.color_pair(6) | curses.A_BOLD)
+        fc_win.add_win_label("Watts", curses.color_pair(6) | curses.A_BOLD)
+        fc_win.refresh()
         stdscr.nodelay(True)
 
+        #erg = conn2erg()
+        #if erg is None:
+        #    raise Exception("Failed to connect with erg")
+
+        # Main PM monitor loop
         ch = 0
         while ch != ord("q"):
-            ch = window6Obj._window.getch()
+            ch = fc_win._window.getch()
             if ch < 0:
                 ch = 0
+            #monitor = erg.get_monitor()
+            #erg_data = erg.get_erg()
+            #workout = erg.get_workout()
+            
             stdscr.timeout(3000)
 
-        # Debugging output.
-        stdscr.addstr(0, 0, "Chosen layout is [" + chosenLayout + "]")
-        stdscr.addstr(1, 10, "Window 1 params are [" + str(window1) + "]")
-        stdscr.addstr(2, 10, "Window 2 params are [" + str(window2) + "]")
-        stdscr.addstr(3, 10, "Window 3 params are [" + str(window3) + "]")
-        stdscr.addstr(4, 10, "Window 4 params are [" + str(window4) + "]")
-        stdscr.addstr(5, 10, "Window 5 params are [" + str(window5) + "]")
-        stdscr.addstr(6, 10, "Window 6 params are [" + str(window6) + "]")
-        stdscr.addstr(7, 10, "Colors are [" + str(colors) + "]")
-        stdscr.addstr(8, 0, "Press a key to continue.")
-        stdscr.refresh()
-        stdscr.getch()
     except Exception:
         caughtExceptions = format_exc()
 
     finally:
         # Debugging output.
         stdscr.addstr(0, 0, "Chosen layout is [" + chosenLayout + "]")
-        stdscr.addstr(1, 10, "Window 1 params are [" + str(window1) + "]")
-        stdscr.addstr(2, 10, "Window 2 params are [" + str(window2) + "]")
-        stdscr.addstr(3, 10, "Window 3 params are [" + str(window3) + "]")
-        stdscr.addstr(4, 10, "Window 4 params are [" + str(window4) + "]")
-        stdscr.addstr(5, 10, "Window 5 params are [" + str(window5) + "]")
-        stdscr.addstr(6, 10, "Window 6 params are [" + str(window6) + "]")
+        stdscr.addstr(1, 10, f"{tet_caption} params are [{str(tet_cords)}]")
+        stdscr.addstr(2, 10, f"{spm_caption} params are [{str(spm_cords)}]")
+        stdscr.addstr(
+            3, 10, f"{splits_caption} params are [{str(splits_cords)}]"
+        )
+        stdscr.addstr(4, 10, f"{tm_caption} params are [{str(tm_cords)}]")
+        stdscr.addstr(5, 10, f"{hr_caption} params are [{str(hr_cords)}]")
+        stdscr.addstr(6, 10, f"{fc_caption} params are [{str(fc_cords)}]")
         stdscr.addstr(7, 10, "Colors are [" + str(colors) + "]")
         stdscr.addstr(8, 0, "Press a key to continue.")
         stdscr.refresh()
@@ -544,9 +498,9 @@ def main(stdscr):
 if __name__ == "__main__":
 
     cmd_name = os.path.splitext(os.path.basename(__file__))[0]
-    args = read_inputs()
+    args = parse_options()
     if args is None:
-        raise Exception
+        raise
         sys.exit(1)
 
     try:
