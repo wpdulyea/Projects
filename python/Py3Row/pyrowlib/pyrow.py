@@ -35,7 +35,7 @@ INTERFACE = 0
 # -----------------------------------------------------------------------------
 #                           Function definitions
 # -----------------------------------------------------------------------------
-def find():
+def find() -> iter:
     try:
         ergs = usb.core.find(find_all=True, idVendor=C2_VENDOR_ID)
         if ergs is None:
@@ -124,11 +124,14 @@ class pyrow(object):
             "CSAFE_PM_GET_WORKDISTANCE",
             "CSAFE_GETCADENCE_CMD",
             "CSAFE_GETPOWER_CMD",
+            "CSAFE_GETPACE_CMD",
             "CSAFE_GETCALORIES_CMD",
             "CSAFE_GETHRCUR_CMD",
         ]
 
         results = self.send(command)
+        if 0 == len(results):
+            raise Exception(f"Empty response from cmd={str(command)}")
 
         monitor = {}
         monitor["time"] = (
@@ -142,25 +145,23 @@ class pyrow(object):
         ) / 10.0
 
         monitor["spm"] = results["CSAFE_GETCADENCE_CMD"][0]
+        # Pace is seconds per 1000m
+        monitor["pace"] = results["CSAFE_GETPACE_CMD"][0] / 2
         # Rowing machine always returns power as Watts
         monitor["power"] = results["CSAFE_GETPOWER_CMD"][0]
         if monitor["power"]:
-            monitor["pace"] = (
-                (2.8 / results["CSAFE_GETPOWER_CMD"][0]) ** (1.0 / 3)
-            ) * 500
             monitor["calhr"] = (
                 results["CSAFE_GETPOWER_CMD"][0] * (4.0 * 0.8604) + 300.0
             )
         else:
-            monitor["pace"], monitor["calhr"] = 0, 0
+            monitor["calhr"] = 0, 0
 
         monitor["calories"] = results["CSAFE_GETCALORIES_CMD"][0]
         monitor["heartrate"] = results["CSAFE_GETHRCUR_CMD"][0]
 
         if forceplot:
             # Collect force plot data and stroke state
-            data = self.get_forceplot_data()
-            monitor["forceplot"] = data
+            monitor["forceplot"] = self.get_forceplot_data()
 
         monitor["status"] = results["CSAFE_GETSTATUS_CMD"][0] & 0xF
 
@@ -223,7 +224,7 @@ class pyrow(object):
                     continue
                 case _:
                     raise ValueError(
-                            f'No match state found: {forceplot["strokestate"]}'
+                        f'No match state found: {forceplot["strokestate"]}'
                     )
 
         return force
@@ -431,7 +432,7 @@ class pyrow(object):
         # convert message to byte array
         csafe = csafe_cmd.encode(message)
         # sends message to erg and records length of message
-        length = self.erg.encode(self.outEndpoint, csafe, timeout=2000)
+        length = self.erg.write(self.outEndpoint, csafe, timeout=2000)
         # records time when message was sent
         self.__lastsend = datetime.datetime.now()
 
@@ -439,7 +440,7 @@ class pyrow(object):
         while not response:
             try:
                 # recieves byte array from erg
-                transmission = self.erg.decode(
+                transmission = self.erg.read(
                     self.inEndpoint, length, timeout=2000
                 )
                 response = csafe_cmd.decode(transmission)
