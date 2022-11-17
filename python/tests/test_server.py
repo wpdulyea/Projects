@@ -27,11 +27,11 @@ class TestTCPServer():
 
     @pytest.mark.skip("Feature is not implemented")
     def test_delay(self):
-        pass
+        ...
 
     @pytest.mark.skip("Feature is not implemented")
     def test_shutdown(self):
-        pass
+        ...
 
 
 @pytest.mark.usefixtures("start_serverfirst")
@@ -51,7 +51,8 @@ class TestServer:
         MSG = "Nothing really important"
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
             client.connect(self.con.srv_addr())
-            ## Servers sends a rdy message, i.e. server response before client sends
+            # Servers sends a rdy message, i.e. server response before client
+            # sends.
             client.recv(self.MAX_BYTES)
             client.sendall(bytes(MSG, "utf-8"))
             data = client.recv(self.MAX_BYTES)
@@ -61,7 +62,8 @@ class TestServer:
         MSG = "Hello, world\n"
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
             client.connect(self.con.srv_addr())
-            ## Servers sends a rdy message, i.e. server response before client sends
+            # Servers sends a rdy message, i.e. server response before client
+            # sends.
             client.recv(self.MAX_BYTES)
             client.sendall(bytes(MSG, "utf-8"))
             data = client.recv(self.MAX_BYTES)
@@ -70,4 +72,4 @@ class TestServer:
 
     @pytest.mark.skip("Feature is not implemented")
     def test_shutdown(self):
-        pass
+        ...

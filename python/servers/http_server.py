@@ -5,24 +5,22 @@ Very simple HTTP server in python.
 
 Example:
     %prog -p port-number (Starts the Server listening on specified port).
-    %prog -s host/IPv4 (which defaults to localhost - us '' to listen on all addresses).
+    %prog -s host/IPv4 (which defaults to localhost - us '' to listen on
+             all addresses).
 """
 # -----------------------------------------------------------------------------
 #                               Imports
 # -----------------------------------------------------------------------------
-try:
-    from http.server import SimpleHTTPRequestHandler, BaseHTTPRequestHandler, HTTPServer
-    from multiprocessing import Process
-    from socketserver import ForkingMixIn
-    from socket import gethostbyname, gethostname
-    from functools import partial
-    from time import sleep
-    import json
-    import sys
-    import cgi
-except ImportError as err:
-    print(f"Module import failed due to {err}")
-    sys.exit(1)
+# Standard
+from http.server import SimpleHTTPRequestHandler as PathRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from multiprocessing import Process
+from socketserver import ForkingMixIn
+from socket import gethostbyname, gethostname
+from functools import partial
+import json
+import sys
+import cgi
 
 # -----------------------------------------------------------------------------
 #                               Global Data
@@ -31,22 +29,23 @@ __author__ = "William Dulyea"
 __email__ = "wpdulyea@yahoo.com"
 
 # -----------------------------------------------------------------------------
-#                               Classes
+#                               Class(es)
 # -----------------------------------------------------------------------------
 class MPServer(ForkingMixIn, HTTPServer):
-    pass
-
-
-class PathRequestHandler(SimpleHTTPRequestHandler):
     pass
 
 
 class RequestHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     ok_response_body = (
-        "<html><body><h1>Hello!</h1><br><h3>How are you today?</h3></body></html>"
+        """
+        <html><body>
+        <h1>Hello!</h1>
+        <br><h3>How are you today?</h3>
+        </body></html>
+        """
     )
-    big_body = "lots and lots of useless text repeated - " * 8 * 4096
+    big_body = "Text fill - " * 8 * 4096
 
     def _print_hearders(self):
         print("Headers:")
@@ -59,7 +58,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         print(f"Client: {str(self.client_address)}")
         try:
             print(f'User-agent: {str(self.headers["user-agent"])}')
-        except:
+        except Exception:
             pass
         print(f"Path: {self.path}\n")
         try:
@@ -69,10 +68,11 @@ class RequestHandler(BaseHTTPRequestHandler):
             if body:
                 print("Response body:\n")
                 if "json" in content_type:
-                    print(json.dumps(json.loads(body), indent=3, sort_keys=False))
+                    jbody = json.dumps(json.loads(body))
+                    print(jbody, indent=3, sort_keys=False)
                 else:
                     print(f"{body}\n")
-        except:
+        except Exception:
             pass
 
     def _set_headers(self, body=None):
@@ -134,10 +134,10 @@ class RequestHandler(BaseHTTPRequestHandler):
 #                               Functions
 # -----------------------------------------------------------------------------
 def read_args():
+    from argparse import ArgumentParser
+
     args = None
     try:
-        from argparse import ArgumentParser
-
         address = gethostbyname(gethostname())
 
         parser = ArgumentParser(usage=__doc__)
@@ -194,7 +194,7 @@ def main():
         parent = Process(target=httpd.serve_forever)
         parent.daemon = True
 
-        print(f"Started HTTP service on Host {options.hostname} port {options.port}...")
+        print(f"Started HTTP service on {gethostname()} port {options.port}")
         parent.start()
         parent.join()
 
