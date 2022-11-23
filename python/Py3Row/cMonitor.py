@@ -21,22 +21,22 @@ Description:
     *                                *    **************PFM*****************
     *                                *    * Projected Finish/current Pace  *
     **********************************    **********************************
-            y,   x,   h,   w 
+            y,   x,   h,   w
     TET   = 0,   0,   1/7, 2/3            APACE  = 4/7, 0,  1/7,  3/3
     SPM   = 0,   2/3, 1/7, 1/3            SM     = 5/7, 0,  1/7,  3/3
     PACE  = 1/7, 0,   2/7, 3/3            PFM    = 6/7, 0,  2/7,  3/3
     TM    = 3/7, 0,   1/7, 2/3
     HR    = 3/7, 2/3, 1/7, 1/3
     PLOT  = 4/7, 0,   3/7, 3/3
-
- 
 """
+
 # -----------------------------------------------------------------------------
 #                               Safe Imports
 # -----------------------------------------------------------------------------
 # Standard
 import sys
 import os
+import math
 from traceback import format_exc
 from random import randrange, sample, choice, randint, uniform
 from datetime import datetime
@@ -71,50 +71,40 @@ class Window(object):
         self._capt_attr = attr
         self._cords = cords
 
-        try:
-            self._window = curses.newwin(*cords)
-            if "" != caption:
-                self._add_caption()
+        self._window = curses.newwin(*cords)
+        if "" != caption:
+            self._add_caption()
 
-            self._window.refresh()
-        except Exception as err:
-            raise err
+        self._window.refresh()
 
     def __enter__(self):
         return self
 
     def __exit__(self, *args, **kwargs):
-        if self._window is not None:
-            self._window.erase()
+        pass
 
     def get_cordinates(self):
         return self._cords
 
     def _add_caption(self):
-        try:
-            self._window.box()
-            # Position the optional caption to the upper left corner 1x1.
-            self._window.addstr(
-                1,
-                1,
-                str(self._caption),
-                self._capt_attr,
-            )
-        except Exception as err:
-            raise err
+        self._window.box()
+        # Position the optional caption to the upper left corner 1x1.
+        self._window.addstr(
+            1,
+            1,
+            str(self._caption),
+            self._capt_attr,
+        )
 
     def _add_label(self):
-        try:
-            # Calculate rough center
-            max_y, max_x = self._window.getmaxyx()
-            self._window.addstr(
-                max_y // 2,
-                (max_x - len(self._label)) // 2,
-                str(self._label),
-                self._label_attr,
-            )
-        except Exception as err:
-            raise err
+        # Calculate rough center
+        max_y, max_x = self._window.getmaxyx()
+        self._window.addstr(
+            max_y // 2,
+            (max_x - len(self._label)) // 2,
+            str(self._label),
+            self._label_attr,
+        )
 
     def set_bkgd(self, ch, attr=0):
         self._window.bkgd(ch, attr)
@@ -128,18 +118,20 @@ class Window(object):
 
         self._add_label()
 
-    def redraw(self):
-        try:
-            self._window.clear()
-            self._window.box()
-            self._add_caption()
-            self._add_label()
+    def update_label(self: object, label: str):
+        self._label = label
+        self._add_label()
+        self.refresh()
 
-            # Might need to add some code to repaint the window on terminal
-            # resize if supported.
-            self._window.refresh()
-        except Exception as err:
-            raise err
+    def redraw(self):
+        self._window.clear()
+        self._window.box()
+        self._add_caption()
+        self._add_label()
+
+        # Might need to add some code to repaint the window on terminal
+        # resize if supported.
+        self._window.refresh()
 
     def refresh(self):
         self._window.refresh()
@@ -148,51 +140,72 @@ class Window(object):
 class ForceCurve(Window):
     """ """
 
-    _pchar = "*"
-    # Colours for each plot to maintain per stroke
-    _pColours = list()
+    _pchar = "+"
     _count = 0
     # Record each plot up to len of pColours. Once len of each is == then clean
     # lastPlot [] = [y_pos, x_pos, colour_attr]
-    _lastPlot = list()
+    _lastPlot = [[]]
+
+    def __init__(
+        self, caption: str, attr: int, cords: list, plotColours: list
+    ):
+        super().__init__(caption, attr, cords)
+        self._pColours = plotColours
 
     def update_forcecurve(self, data: list):
         """
-        Given a forcecuve data list, plot to window.
+        Given a forcecuve data list, plot to temp storage .
 
         This will redraw the last plot up to pre-defined forceplots
         defaults to 4 in different colours.
         """
-        y_plot = 0
+        y_plot = x_plot = 2
         y_max, x_max = self._window.getmaxyx()
-        x_plot = x_max // len(data)  # which should be 32
+        y_max -= 2
+        x_max -= 2
+        x_step = 1
 
         # ToDo: It is not clear where this value comes from.
         max_force = 300
-        force_unit = y_max // max_force
+        if y_max < max_force:
+            y_scaled = y_max / max_force
+        else:
+            y_scaled = 1
 
-        if len(self._lastPlot) >= 4:
+        if self._count >= 3:
             self._lastPlot = [[]]
             self._count = 0
+        else:
+            self._lastPlot.append([])
 
         for d in data:
-            y_plot = self.max_y - (d * force_unit)
+            y_plot = y_max - math.floor(d * y_scaled)
             self._lastPlot[self._count].append(
-                [y_plot, x_plot, self.pColours[self.count]]
+                [y_plot, x_plot, self._pColours[self._count]]
             )
-        self._count += 1
-        # Extend the list for the next plot
-        self._lastPlot.append([])
+            x_plot += x_step
 
-    def draw_forcecurve(self):
+        self._count += 1
+
+    def redraw(self):
         """
         if self.lastPlot is not empty, repaint the contents to the window
         """
+        super().redraw()
+
         # ToDo: This may not work if window resizing is added.
         for plot in self._lastPlot[0 : len(self._lastPlot)]:
             for curve in plot:
-                # [y_pos, x_pos, char, colour_attr]
-                self.window.addstr(curve[0], curve[1], self._pchar, curve[2])
+                if len(curve) == 3:
+                    # curve[y_pos, x_pos, char, colour_attr]
+                    self._window.addstr(
+                        curve[0], curve[1], self._pchar, curve[2]
+                    )
+                else:
+                    # quietly skip
+                    pass
+
+        self.refresh()
 
 
 # -----------------------------------------------------------------------------
@@ -234,7 +247,7 @@ def parse_options():
             "-a", help="Is for Apple", type=str, required=False
         )
         parser.add_argument(
-            "-b", help="Is for how many Ballon(s)", type=int, required=True
+            "-b", help="Is for how many Ballon(s)", type=int, required=False
         )
         res = parser.parse_args()
     except Exception as error:
@@ -248,6 +261,7 @@ def main(stdscr):
     stdscr = curses.initscr()
     stdscr.refresh()
     stdscr.box()
+
     # Do not echo keys.
     curses.noecho()
     curses.cbreak()
@@ -272,7 +286,7 @@ def main(stdscr):
     # Random selection of colours
     colors = sample(bgColors, 6)
 
-    # Create ncurses color pair objects.
+    # Curses colours.
     curses.init_pair(1, curses.COLOR_WHITE, colors[0])
     curses.init_pair(2, curses.COLOR_WHITE, colors[1])
     curses.init_pair(3, curses.COLOR_WHITE, colors[2])
@@ -302,8 +316,13 @@ def main(stdscr):
     hr_caption = "Heart Rate"
     fc_caption = "Force Curve"
 
+    chosenLayout = ""
     caughtExceptions = ""
     try:
+        erg = conn2erg()
+        if erg is None:
+            raise Exception("Failed to connect with erg")
+
         # Window dimensions will be proportinally based
         # as illustgrated in top of file.
         #         y,   x,   w,   h
@@ -364,96 +383,114 @@ def main(stdscr):
         wtime_secs = 0
         hrate = 0
         srate = 0
+        power = 0
+        cals_hr = 0
+        cals = 0
 
         # Create each window to display erg data.
-        tet_win = Window(
-            tet_caption,
-            curses.color_pair(1) | curses.A_BOLD,
-            tet_cords,
-        )
-        tet_win.set_bkgd(" ", curses.color_pair(1) | curses.A_BOLD)
-        tet_win.add_win_label(
-            "%.2d:%.2d" % (wtime_mins, wtime_secs),
-            curses.color_pair(1) | curses.A_BOLD,
-        )
-        tet_win.refresh()
+        with Window(
+            tet_caption, curses.color_pair(1) | curses.A_BOLD, tet_cords
+        ) as tet_win:
+            tet_win.set_bkgd(" ", curses.color_pair(1) | curses.A_BOLD)
+            tet_win.add_win_label(
+                "%.2d:%.2d" % (wtime_mins, wtime_secs),
+                curses.color_pair(1) | curses.A_BOLD,
+            )
+            tet_win.refresh()
 
-        spm_win = Window(
-            spm_caption,
-            curses.color_pair(2) | curses.A_BOLD,
-            spm_cords,
-        )
-        spm_win.set_bkgd(" ", curses.color_pair(2) | curses.A_BOLD)
-        spm_win.add_win_label(
-            "%.2d /spm" % (srate), curses.color_pair(2) | curses.A_BOLD
-        )
-        spm_win.refresh()
+        with Window(
+            spm_caption, curses.color_pair(2) | curses.A_BOLD, spm_cords
+        ) as spm_win:
+            spm_win.set_bkgd(" ", curses.color_pair(2) | curses.A_BOLD)
+            spm_win.add_win_label(
+                "%.2d /spm" % (srate), curses.color_pair(2) | curses.A_BOLD
+            )
+            spm_win.refresh()
 
-        splits_win = Window(
-            splits_caption,
-            curses.color_pair(3) | curses.A_BOLD,
-            splits_cords,
-        )
-        splits_win.set_bkgd(" ", curses.color_pair(3) | curses.A_BOLD)
-        splits_win.add_win_label(
-            "%.2d:%.2d /500m" % (pace_mins, pace_secs),
-            curses.color_pair(3) | curses.A_BOLD,
-        )
-        splits_win.refresh()
+        with Window(
+            splits_caption, curses.color_pair(3) | curses.A_BOLD, splits_cords
+        ) as splits_win:
+            splits_win.set_bkgd(" ", curses.color_pair(3) | curses.A_BOLD)
+            splits_win.add_win_label(
+                "%.2d:%.2d /500m" % (pace_mins, pace_secs),
+                curses.color_pair(3) | curses.A_BOLD,
+            )
+            splits_win.refresh()
 
-        tm_win = Window(
-            tm_caption,
-            curses.color_pair(4) | curses.A_BOLD,
-            tm_cords,
-        )
-        tm_win.set_bkgd(" ", curses.color_pair(4) | curses.A_BOLD)
-        tm_win.add_win_label(
-            "%.4d m" % (total_meters), curses.color_pair(4) | curses.A_BOLD
-        )
-        tm_win.refresh()
+        with Window(
+            tm_caption, curses.color_pair(4) | curses.A_BOLD, tm_cords
+        ) as tm_win:
+            tm_win.set_bkgd(" ", curses.color_pair(4) | curses.A_BOLD)
+            tm_win.add_win_label(
+                "%.4d m" % (total_meters), curses.color_pair(4) | curses.A_BOLD
+            )
+            tm_win.refresh()
 
-        hr_win = Window(
-            hr_caption,
-            curses.color_pair(5) | curses.A_BOLD,
-            hr_cords,
-        )
-        hr_win.set_bkgd(" ", curses.color_pair(5) | curses.A_BOLD)
-        hr_win.add_win_label(
-            "%.3d bpm" % (hrate), curses.color_pair(5) | curses.A_BOLD
-        )
-        hr_win.refresh()
+        with Window(
+            hr_caption, curses.color_pair(5) | curses.A_BOLD, hr_cords
+        ) as hr_win:
+            hr_win.set_bkgd(" ", curses.color_pair(5) | curses.A_BOLD)
+            hr_win.add_win_label(
+                "%.3d bpm" % (hrate), curses.color_pair(5) | curses.A_BOLD
+            )
+            hr_win.refresh()
 
-        fc_win = ForceCurve(
-            fc_caption,
+        plot_colours = [curses.color_pair(1), curses.color_pair(2), curses.color_pair(3)]
+        with ForceCurve(
+            Exit_Caption,
             curses.color_pair(6) | curses.A_BOLD,
             fc_cords,
-        )
-        fc_win.set_bkgd(" ", curses.color_pair(6) | curses.A_BOLD)
-        fc_win.add_win_label("Watts", curses.color_pair(6) | curses.A_BOLD)
-        fc_win.refresh()
-        stdscr.nodelay(True)
+            plot_colours,
+        ) as fc_win:
+            fc_win.set_bkgd(" ", curses.color_pair(6) | curses.A_BOLD)
+            fc_win.add_win_label(
+                "Force curve", curses.color_pair(6) | curses.A_BOLD
+            )
+            fc_win.refresh()
+            fc_win._window.nodelay(True)
 
-        #erg = conn2erg()
-        #if erg is None:
-        #    raise Exception("Failed to connect with erg")
-
-        # Main PM monitor loop
+        # Main PM monitor loop; specify pressing 'q' to exit loop and
+        # end execution.
         ch = 0
         while ch != ord("q"):
             ch = fc_win._window.getch()
             if ch < 0:
                 ch = 0
-            #monitor = erg.get_monitor()
-            #erg_data = erg.get_erg()
-            #workout = erg.get_workout()
-            
-            stdscr.timeout(3000)
+            monitor = erg.get_monitor()
+
+            total_meters = monitor["distance"]
+            tm_win.update_label("%.4d m" % (total_meters))
+
+            cals_hr = monitor["calhr"]  # pre processed data
+            cals_hr = str(int(math.ceil(cals_hr)))
+
+            # python math function to get mins and secs
+            pace_mins, pace_secs = divmod(monitor["pace"], 60)
+            splits_win.update_label("%.2d:%.2d /500m" % (pace_mins, pace_secs))
+
+            wtime_mins, wtime_secs = divmod(monitor["time"], 60)
+            tet_win.update_label("%.2d:%.2d" % (wtime_mins, wtime_secs))
+
+            srate = monitor["spm"]
+            spm_win.update_label("%.2d /spm" % (srate))
+
+            hrate = monitor["heartrate"]
+            hr_win.update_label("%.3d bpm" % (hrate))
+
+            power = monitor["power"]
+
+            if fc_win is not None:
+                force = []
+                force = erg.get_forceplot_data()
+                if len(force) > 0:
+                    fc_win.update_forcecurve(force)
+                    fc_win.redraw()
 
     except Exception:
-        caughtExceptions = format_exc()
+        caughtExceptions += format_exc()
 
     finally:
-        # Debugging output.
+        # Debugging help.
         stdscr.addstr(0, 0, "Chosen layout is [" + chosenLayout + "]")
         stdscr.addstr(1, 10, f"{tet_caption} params are [{str(tet_cords)}]")
         stdscr.addstr(2, 10, f"{spm_caption} params are [{str(spm_cords)}]")
