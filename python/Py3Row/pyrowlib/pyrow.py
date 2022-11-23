@@ -1,10 +1,10 @@
 """
-
 Description:
+    Python library for interacting with the Concept2 PM ergometer 3/4/5
 
 """
 # -----------------------------------------------------------------------------
-#                               Safe Imports
+#                               Imports
 # -----------------------------------------------------------------------------
 # Standard
 from traceback import format_exc
@@ -90,8 +90,15 @@ class PyRow(object):
         # Collect forcedata
         self.__forcedata = {}
 
+    def __enter__(self: object) -> object:
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        if self.erg is not None:
+            del self.erg
+
     def __checkvalue(
-        self, value: int, label: str, minimum: int, maximum: int
+        self: object, value: int, label: str, minimum: int, maximum: int
     ) -> bool:
         """
         Checks that value is an integer and within the specified range
@@ -110,7 +117,7 @@ class PyRow(object):
         finally:
             return isTrue
 
-    def get_monitor(self, forceplot: bool = False) -> dict:
+    def get_monitor(self: object, forceplot: bool = False) -> dict:
         """
         Returns values from the monitor that relate to the current workout,
         optionally returns force plot data and stroke state
@@ -154,7 +161,7 @@ class PyRow(object):
                 results["CSAFE_GETPOWER_CMD"][0] * (4.0 * 0.8604) + 300.0
             )
         else:
-            monitor["calhr"] = 0, 0
+            monitor["calhr"] = 0
 
         monitor["calories"] = results["CSAFE_GETCALORIES_CMD"][0]
         monitor["heartrate"] = results["CSAFE_GETHRCUR_CMD"][0]
@@ -167,7 +174,7 @@ class PyRow(object):
 
         return monitor
 
-    def get_force_plot(self) -> dict:
+    def get_force_plot(self: object) -> dict:
         """
         Returns force plot data and stroke state
         """
@@ -180,6 +187,8 @@ class PyRow(object):
         ]
 
         results = self.send(command)
+        if 0 == len(results):
+            raise Exception(f"Empty response from cmd={str(command)}")
 
         datapoints += results["CSAFE_PM_GET_FORCEPLOTDATA"][0] // 2
         forceplot["forceplot"] = results["CSAFE_PM_GET_FORCEPLOTDATA"][
@@ -190,7 +199,7 @@ class PyRow(object):
 
         return forceplot
 
-    def get_forceplot_data(self) -> dict:
+    def get_forceplot_data(self: object) -> dict:
         """
         Returns cumlative forceplot data after polling successive calls to
         get_force_plot.
@@ -229,7 +238,7 @@ class PyRow(object):
 
         return force
 
-    def get_workout(self) -> dict:
+    def get_workout(self: object) -> dict:
         """
         Returns overall workout data
         """
@@ -241,7 +250,10 @@ class PyRow(object):
             "CSAFE_PM_GET_INTERVALTYPE",
             "CSAFE_PM_GET_WORKOUTINTERVALCOUNT",
         ]
+
         results = self.send(command)
+        if 0 == len(results):
+            raise Exception(f"Empty response from cmd={str(command)}")
 
         workoutdata = {}
         workoutdata["userid"] = results["CSAFE_GETID_CMD"][0]
@@ -256,7 +268,7 @@ class PyRow(object):
 
         return workoutdata
 
-    def get_erg(self) -> dict:
+    def get_erg(self: object) -> dict:
         """
         Returns all erg data that is not related to the workout
         """
@@ -268,6 +280,8 @@ class PyRow(object):
             0x00,
         ]
         results = self.send(command)
+        if 0 == len(results):
+            raise Exception(f"Empty response from cmd={str(command)}")
 
         ergdata = {}
         # Get data from csafe get version command
@@ -287,7 +301,7 @@ class PyRow(object):
 
         return ergdata
 
-    def get_status(self):
+    def get_status(self: object) -> int:
         """
         Returns the status of the erg
         """
@@ -296,13 +310,15 @@ class PyRow(object):
             "CSAFE_GETSTATUS_CMD",
         ]
         results = self.send(command)
+        if 0 == len(results):
+            raise Exception(f"Empty response from cmd={str(command)}")
 
         status = {}
         status["status"] = results["CSAFE_GETSTATUS_CMD"][0] & 0xF
 
         return status
 
-    def set_clock(self):
+    def set_clock(self: object) -> dict:
         """
         Sets the erg clock to the computers current time and date
         """
@@ -312,18 +328,22 @@ class PyRow(object):
         command = ["CSAFE_SETTIME_CMD", now.hour, now.minute, now.second]
         command.extend(["CSAFE_SETDATE_CMD", now.year, now.month, now.day])
 
-        self.send(command)
+        results = self.send(command)
+        if 0 == len(results):
+            raise Exception(f"Empty response from cmd={str(command)}")
+
+        return results
 
     def set_workout(
-        self,
-        program=None,
-        workout_time=None,
-        distance=None,
-        split=None,
-        pace=None,
-        calpace=None,
-        powerpace=None,
-    ):
+        self: object,
+        program: list = None,
+        workout_time: int = None,
+        distance: int = None,
+        split: int = None,
+        pace: int = None,
+        calpace: int = None,
+        powerpace: int = None,
+    ) -> dict:
         """
         If machine is in the ready state, function will set the
         workout and display the start workout screen
@@ -413,9 +433,13 @@ class PyRow(object):
             ["CSAFE_SETPROGRAM_CMD", program, 0, "CSAFE_GOINUSE_CMD"]
         )
 
-        self.send(command)
+        results = self.send(command)
+        if 0 == len(results):
+            raise Exception(f"Empty response from cmd={str(command)}")
 
-    def send(self, message):
+        return results
+
+    def send(self: object, message: list) -> dict:
         """
         Converts and sends message to erg; receives, converts
         and returns response.
@@ -436,7 +460,7 @@ class PyRow(object):
         # records time when message was sent
         self.__lastsend = datetime.datetime.now()
 
-        response = []
+        response = {}
         while not response:
             try:
                 # recieves byte array from erg
