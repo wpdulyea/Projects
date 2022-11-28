@@ -92,9 +92,9 @@ def main():
 
     # SPLASH SCREEN
     screen.blit(splash, (0, 0))
-    connectedText = tinyFont.render(f"{ergs[0].product} Monitor Connected", True, GREEN)
+    connectedText = tinyFont.render(f"{ergs[0].product}: Connected", True, GREEN)
     disconnectedText = tinyFont.render(
-        "* Monitor Connection Lost - Re-Start!", True, RED
+        "Connection Lost - Re-Start!", True, RED
     )
     quitText = tinyFont.render("Press Esc to Exit", True, BLACK)
     errexitText = smallFont.render("Press Esc to", True, RED)  # after error
@@ -331,15 +331,15 @@ def main():
             sample = 20  # starts at 20 pixels along x_axis for first reading
             for f in force:
                 if plot_col_picker == 0:  # red
-                    screen.blit(plotter_red, (sample, 735 - (f * 2.52)))
+                    screen.blit(plotter_red, (sample, 735 - math.floor(f * 2.52)))
                 elif plot_col_picker == 1:  # green
-                    screen.blit(plotter_green, (sample, 735 - (f * 2.52)))
+                    screen.blit(plotter_green, (sample, 735 - math.floor(f * 2.52)))
                 elif plot_col_picker == 2:  # blue
-                    screen.blit(plotter_blue, (sample, 735 - (f * 2.52)))
+                    screen.blit(plotter_blue, (sample, 735 - math.floor(f * 2.52)))
                 elif plot_col_picker == 3:  # yellow
-                    screen.blit(plotter_yellow, (sample, 735 - (f * 2.52)))
+                    screen.blit(plotter_yellow, (sample, 735 - math.floor(f * 2.52)))
                 elif plot_col_picker == 4:  # black
-                    screen.blit(plotter_black, (sample, 735 - (f * 2.52)))
+                    screen.blit(plotter_black, (sample, 735 - math.floor(f * 2.52)))
 
                 """
                 y_axis max height (758) / max force (300) = 2.52
@@ -348,7 +348,7 @@ def main():
                 coord 0,0 is top left
                 """
                 sample += (
-                    13  # moves the plotter 13 pixels along x_axis per cycle
+                    10  # moves the plotter 13 pixels along x_axis per cycle
                 )
                 pygame.display.update()  # update screen for each plotted point
 

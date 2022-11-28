@@ -180,11 +180,7 @@ class PyRow(object):
         """
         forceplot = {}
         datapoints = 1
-        command = [
-            "CSAFE_PM_GET_FORCEPLOTDATA",
-            32,
-            "CSAFE_PM_GET_STROKESTATE",
-        ]
+        command = ["CSAFE_PM_GET_FORCEPLOTDATA", 32]
 
         results = self.send(command)
         if 0 == len(results):
@@ -194,8 +190,6 @@ class PyRow(object):
         forceplot["forceplot"] = results["CSAFE_PM_GET_FORCEPLOTDATA"][
             1:datapoints
         ]
-        forceplot["strokestate"] = results["CSAFE_PM_GET_STROKESTATE"][0]
-        forceplot["status"] = results["CSAFE_GETSTATUS_CMD"][0] & 0xF
 
         return forceplot
 
@@ -208,29 +202,40 @@ class PyRow(object):
         force = []
         StrokeState = csafe_cmd.csafe_dic.STROKE_STATE
         RowState = csafe_cmd.csafe_dic.ROWING_STATE
+
         # Break out of loop after transitioning from Dwelling to Recovery
+        # or state machine is not active.
         trans2recovery = False
+        # Timeout in 5 seconds
+        start = time.monotonic_ns() + (10**9 * 5)
+
         while True:
-            forceplot = self.get_force_plot()
-            if forceplot["status"] == RowState.INACTIVE:
+            resp = self.get_status()
+            # Use a hard timeout until access to the operational state machine
+            # can be used.
+            if time.monotonic_ns() >= start:
                 break
-            match forceplot["strokestate"]:
+            match resp["strokestate"]:
                 case StrokeState.WAITING_FOR_WHEEL_TO_REACH_MIN_SPEED_STATE:
                     continue
                 case StrokeState.WAITING_FOR_WHEEL_TO_ACCELERATE_STATE:
                     continue
                 case StrokeState.DRIVING_STATE:
+                    forceplot = self.get_force_plot()
                     force.extend(forceplot["forceplot"])
                     continue
                 case StrokeState.DWELLING_AFTER_DRIVE_STATE:
                     trans2recovery = True
+                    forceplot = self.get_force_plot()
                     force.extend(forceplot["forceplot"])
                     continue
                 case StrokeState.RECOVERY_STATE:
                     if trans2recovery is True:
+                        forceplot = self.get_force_plot()
                         force.extend(forceplot["forceplot"])
                         break
-                    continue
+                    else:
+                        continue
                 case _:
                     raise ValueError(
                         f'No match state found: {forceplot["strokestate"]}'
@@ -307,6 +312,7 @@ class PyRow(object):
         """
 
         command = [
+            "CSAFE_PM_GET_STROKESTATE",
             "CSAFE_GETSTATUS_CMD",
         ]
         results = self.send(command)
@@ -314,6 +320,7 @@ class PyRow(object):
             raise Exception(f"Empty response from cmd={str(command)}")
 
         status = {}
+        status["strokestate"] = results["CSAFE_PM_GET_STROKESTATE"][0]
         status["status"] = results["CSAFE_GETSTATUS_CMD"][0] & 0xF
 
         return status

@@ -208,6 +208,7 @@ def decode(transmission: list) -> list:
     # prime variables
     message = []
     stopfound = False
+    response = None
 
     try:
         # reportid = transmission[0]
