@@ -2,7 +2,7 @@
 
 ## ABOUT
 
-Py3Row is taken from the [pyRow project](https://github.com/wemakewaves/PyRow) and updated to run on python3. Also included in this project is the [Py C2 Monitor](http://raspirowing.com/index.php/projects/py-c2-monitor) using the pygame framework updated to run with Python3. This library of code provides an Python API library to interact with a Concept 2 Rowing Ergometer PM3, PM4 or PM5 monitor[^note].
+Py3Row is taken from the [pyRow project](https://github.com/wemakewaves/PyRow) and updated to run on python3. Also included in this project is the [Py C2 Monitor](http://raspirowing.com/index.php/projects/py-c2-monitor) using the pygame framework updated to run with Python3. Also included in cMonitor.py, a curses representation of the PM device (This is a work in Progress 24/11/2022). This library of code provides an Python API library to interact with a Concept 2 Rowing Ergometer PM3, PM4 or PM5 monitor[^note].
 
 "PyRow sends and receives information from the Ergometer using csafe commands or built in functions (listed below)."
 
@@ -63,8 +63,8 @@ erg = pyrow.pyrow(ergs[0])
 
 `pyrow.pyrow.getMonitor(forceplot=False)` - returns data from the monitor in dictionary format, keys listed below with descriptions
 
-- time = Monitor time in seconds
-- distance = Monitor distance in meters
+- time = Monitor time or time left in workout in seconds
+- current distance = Monitor distance in meters
 - spm = Strokes per Minute
 - power = Power in watts
 - pace = /500m pace
@@ -72,17 +72,18 @@ erg = pyrow.pyrow(ergs[0])
 - calories = Total Calories Burned
 - heartrate = Current Heart Rate
 - status = Machine Status
-  If keyvalue forceplot is set to true
+
+If keyvalue forceplot is set to true
 - forceplot = Force Plot Data
 - strokestate = Stroke State
 
 ---
 
-`pyrow.pyrow.getForcePlot()` - returns force plot data and stroke state in dictionary format, keys listed below with descriptions
+`pyrow.pyrow.get_ForcePlot_data()` - returns force plot data and stroke state in dictionary format, keys listed below with descriptions
 
 - forceplot = Force Plot Data (array varying in length from 0 to 16)
-- strokestate = Stroke State
-- status = Machine status
+- strokestate = Stroke State (used internally to collect full stroke force plot)
+- status = Machine Status
 
 ---
 

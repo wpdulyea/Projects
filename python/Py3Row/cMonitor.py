@@ -63,7 +63,13 @@ layouts = [
 # -----------------------------------------------------------------------------
 class Window(object):
     """
-    Base class for a subwindow.
+    Base class for a curses subwindow specialized to contain a PM monitor
+    display panel.
+
+    :param str caption: String to disply at the top-left of Window
+    :param int attr: String attributes for addstr()
+    :param list cords: List containing the [y-axis, x-axis, height, width]
+    :return: Window Object
     """
 
     def __init__(self, caption: str, attr: int, cords: list):
@@ -87,8 +93,10 @@ class Window(object):
         return self._cords
 
     def _add_caption(self):
+        """
+        Position the optional caption to the upper left corner 1x1.
+        """
         self._window.box()
-        # Position the optional caption to the upper left corner 1x1.
         self._window.addstr(
             1,
             1,
@@ -97,7 +105,10 @@ class Window(object):
         )
 
     def _add_label(self):
-        # Calculate rough center
+        """
+        Add dispayed label = formatted string
+        to the calculate rough center of window.
+        """
         max_y, max_x = self._window.getmaxyx()
         self._window.addstr(
             max_y // 2,
@@ -111,7 +122,8 @@ class Window(object):
 
     def add_win_label(self, label: str, attr: int):
         """
-        Add the string to the center, with BOLD flavoring.
+        Add formatted string and attribute and then call internal
+        _add_label() to paint to window.
         """
         self._label = label
         self._label_attr = attr
@@ -119,11 +131,17 @@ class Window(object):
         self._add_label()
 
     def update_label(self: object, label: str):
+        """
+        Update formatted string and redraw to window.
+        """
         self._label = label
         self._add_label()
         self.refresh()
 
     def redraw(self):
+        """
+        Redraws this window object based on the objects current state.
+        """
         self._window.clear()
         self._window.box()
         self._add_caption()
@@ -138,12 +156,26 @@ class Window(object):
 
 
 class ForceCurve(Window):
-    """ """
+    """
+    sub class of Window specialised to create and update PM Monitor
+    forcecurve data. The plotColours list will determine the number
+    of force curves to keep record of, one for each colour in the
+    list.
 
+    :param str caption: see parent for details
+    :param int attr: see parent for details
+    :param list cords: see parent for details
+    :param list plotColours: List of curses initialised color objects.
+    :return: Window Object
+    """
+
+    # Character used to represent the plot points.
     _pchar = "+"
+    # Tracks the number of recorded forcecurve plots.
     _count = 0
+
     # Record each plot up to len of pColours. Once len of each is == then clean
-    # lastPlot [] = [y_pos, x_pos, colour_attr]
+    # lastPlot [] = [y_pos, x_pos, colour_attr, power]
     _lastPlot = [[]]
 
     def __init__(
@@ -152,17 +184,18 @@ class ForceCurve(Window):
         super().__init__(caption, attr, cords)
         self._pColours = plotColours
 
-    def update_forcecurve(self, data: list):
+    def update_forcecurve(self, data: list, power: int):
         """
-        Given a forcecuve data list, plot to temp storage .
-
-        This will redraw the last plot up to pre-defined forceplots
-        defaults to 4 in different colours.
+        Given a forcecuve data list, plot to temp storage.
         """
-        y_plot = x_plot = 2
         y_max, x_max = self._window.getmaxyx()
         y_max -= 2
         x_max -= 2
+        # Start Y axis at + 2 to avoid overlap with box line.
+        y_plot = 2
+        # Start X axis at 1/4 of the width of the given window.
+        x_plot = x_max * 1 // 8
+        # x axis step to next start of plot
         x_step = 1
 
         # ToDo: It is not clear where this value comes from.
@@ -172,7 +205,7 @@ class ForceCurve(Window):
         else:
             y_scaled = 1
 
-        if self._count >= 3:
+        if self._count >= len(self._pColours):
             self._lastPlot = [[]]
             self._count = 0
         else:
@@ -180,8 +213,13 @@ class ForceCurve(Window):
 
         for d in data:
             y_plot = y_max - math.floor(d * y_scaled)
+            # Check that x/y-axis limits are not exceeded.
+            if y_plot > y_max:
+                y_plot = y_max
+            if x_plot > x_max:
+                x_plot = x_max
             self._lastPlot[self._count].append(
-                [y_plot, x_plot, self._pColours[self._count]]
+                [y_plot, x_plot, self._pColours[self._count], power]
             )
             x_plot += x_step
 
@@ -189,21 +227,27 @@ class ForceCurve(Window):
 
     def redraw(self):
         """
-        if self.lastPlot is not empty, repaint the contents to the window
+        This will redraw the entire contents of lastPlot.
         """
         super().redraw()
 
-        # ToDo: This may not work if window resizing is added.
-        for plot in self._lastPlot[0 : len(self._lastPlot)]:
+        # Power label plot postion in the y-axis
+        yp = 4
+        for plot in self._lastPlot[0: len(self._lastPlot)]:
             for curve in plot:
-                if len(curve) == 3:
+                if len(curve) == 4:
                     # curve[y_pos, x_pos, char, colour_attr]
                     self._window.addstr(
                         curve[0], curve[1], self._pchar, curve[2]
                     )
+                    # Power label
+                    self._window.addstr(
+                        yp, 2, "Max Power:%.2i Watts" % (curve[3]), curve[2]
+                    )
                 else:
                     # quietly skip
                     pass
+            yp += 1
 
         self.refresh()
 
@@ -244,10 +288,16 @@ def parse_options():
     try:
         parser = ArgumentParser()
         parser.add_argument(
-            "-a", help="Is for Apple", type=str, required=False
+            "--menu", help="With PM menu - (not implemented)",
+            action='store_true', required=False
         )
         parser.add_argument(
-            "-b", help="Is for how many Ballon(s)", type=int, required=False
+            "--standard", help="Current workout data",
+            action='store_true', required=False
+        )
+        parser.add_argument(
+            '--with-force-curve', help="Add the force curve plot window",
+            action='store_true', required=False
         )
         res = parser.parse_args()
     except Exception as error:
@@ -272,7 +322,7 @@ def main(stdscr):
 
     stdscr.keypad(True)
 
-    bgColors = [
+    bgColours = [
         curses.COLOR_BLUE,
         curses.COLOR_CYAN,
         curses.COLOR_GREEN,
@@ -280,19 +330,19 @@ def main(stdscr):
         curses.COLOR_RED,
         curses.COLOR_YELLOW,
         curses.COLOR_RED | curses.COLOR_YELLOW,
-        curses.COLOR_BLUE | curses.COLOR_WHITE,
+        curses.COLOR_BLUE | curses.COLOR_YELLOW,
         curses.COLOR_GREEN | curses.COLOR_YELLOW,
     ]
     # Random selection of colours
-    colors = sample(bgColors, 6)
+    colours = sample(bgColours, 6)
 
     # Curses colours.
-    curses.init_pair(1, curses.COLOR_WHITE, colors[0])
-    curses.init_pair(2, curses.COLOR_WHITE, colors[1])
-    curses.init_pair(3, curses.COLOR_WHITE, colors[2])
-    curses.init_pair(4, curses.COLOR_WHITE, colors[3])
-    curses.init_pair(5, curses.COLOR_WHITE, colors[4])
-    curses.init_pair(6, curses.COLOR_WHITE, colors[5])
+    curses.init_pair(1, curses.COLOR_WHITE, colours[0])
+    curses.init_pair(2, curses.COLOR_WHITE, colours[1])
+    curses.init_pair(3, curses.COLOR_WHITE, colours[2])
+    curses.init_pair(4, curses.COLOR_WHITE, colours[3])
+    curses.init_pair(5, curses.COLOR_WHITE, colours[4])
+    curses.init_pair(6, curses.COLOR_WHITE, colours[5])
 
     # Monitor windows
     tet_win = None
@@ -483,7 +533,7 @@ def main(stdscr):
                 force = []
                 force = erg.get_forceplot_data()
                 if len(force) > 0:
-                    fc_win.update_forcecurve(force)
+                    fc_win.update_forcecurve(force, power)
                     fc_win.redraw()
 
     except Exception:
@@ -500,7 +550,7 @@ def main(stdscr):
         stdscr.addstr(4, 10, f"{tm_caption} params are [{str(tm_cords)}]")
         stdscr.addstr(5, 10, f"{hr_caption} params are [{str(hr_cords)}]")
         stdscr.addstr(6, 10, f"{fc_caption} params are [{str(fc_cords)}]")
-        stdscr.addstr(7, 10, "Colors are [" + str(colors) + "]")
+        stdscr.addstr(7, 10, "Colors are [" + str(colours) + "]")
         stdscr.addstr(8, 0, "Press a key to continue.")
         stdscr.refresh()
         stdscr.getch()

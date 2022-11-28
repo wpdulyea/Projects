@@ -22,6 +22,13 @@ sFSF = Standard_Frame_Start_Flag = 0xF1
 SFF = Stop_Frame_Flag = 0xF2
 BSF = Byte_Stuffing_Flag = 0xF3
 
+# PM-Specific CSAFE Command Wrappers
+CSAFE_SETUSERCFG1_CMD = 0x1A
+# PM Proprietary CSAFE Command Wrappers
+CSAFE_SETPMCFG_CMD = 0x76
+CSAFE_SETPMDATA_CMD = 0x77
+CSAFE_GETPMCFG_CMD = 0x7E
+CSAFE_GETPMDATA_CMD = 0x7F
 
 # Dictionary of cmds['COMMAND_NAME'] = [0xCmd_Id, [Byte(s), ...]]
 cmds = {}
@@ -56,6 +63,7 @@ cmds["CSAFE_GETHRCUR_CMD"] = [0xB0, []]
 cmds["CSAFE_GETPOWER_CMD"] = [0xB4, []]
 
 # Long Commands
+#
 # Configuration (no affect)
 cmds["CSAFE_AUTOUPLOAD_CMD"] = [0x01, [1]]
 # Number of Digits
@@ -80,19 +88,23 @@ cmds["CSAFE_SETPROGRAM_CMD"] = [0x24, [1, 1]]
 cmds["CSAFE_SETPOWER_CMD"] = [0x34, [2, 1]]
 # Capability Code
 cmds["CSAFE_GETCAPS_CMD"] = [0x70, [1]]
-# PM3 Specific Short Commands
+
+# C2 Proprietary Short Commands using the
+# CSAFE_SETUSERCFG1_CMD command wrapper
+#
 cmds["CSAFE_PM_GET_WORKOUTTYPE"] = [0x89, [], 0x1A]
-cmds["CSAFE_PM_GET_DRAGFACTOR"] = [0xC1, [], 0x1A]
-cmds["CSAFE_PM_GET_STROKESTATE"] = [0xBF, [], 0x1A]
+cmds["CSAFE_PM_GET_WORKOUTSTATE"] = [0x8D, [], 0x1A]
+cmds["CSAFE_PM_GET_INTERVALTYPE"] = [0x8E, [], 0x1A]
+cmds["CSAFE_PM_GET_WORKOUTINTERVALCOUNT"] = [0x9F, [], 0x1A]
 cmds["CSAFE_PM_GET_WORKTIME"] = [0xA0, [], 0x1A]
 cmds["CSAFE_PM_GET_WORKDISTANCE"] = [0xA3, [], 0x1A]
 cmds["CSAFE_PM_GET_ERRORVALUE"] = [0xC9, [], 0x1A]
-cmds["CSAFE_PM_GET_WORKOUTSTATE"] = [0x8D, [], 0x1A]
-cmds["CSAFE_PM_GET_WORKOUTINTERVALCOUNT"] = [0x9F, [], 0x1A]
-cmds["CSAFE_PM_GET_INTERVALTYPE"] = [0x8E, [], 0x1A]
 cmds["CSAFE_PM_GET_RESTTIME"] = [0xCF, [], 0x1A]
 
-# PM3 Specific Long Commands
+cmds["CSAFE_PM_GET_DRAGFACTOR"] = [0xC1, [], 0x1A]
+cmds["CSAFE_PM_GET_STROKESTATE"] = [0xBF, [], 0x1A]
+
+# C2 Proprietary Long Commands
 cmds["CSAFE_PM_SET_SPLITDURATION"] = [
     0x05,
     [1, 4],
@@ -120,6 +132,18 @@ cmds["CSAFE_PM_GET_HEARTBEATDATA"] = [
     0x1A,
 ]  # Block Length
 
+# C2 Proprietary Short Commands using the
+# CSAFE_GETPMCFG_CMD command wrapper
+#
+cmds["CSAFE_PM_GET_FW_VERSION"] = [0x80, [], CSAFE_GETPMCFG_CMD]
+cmds["CSAFE_PM_GET_HW_VERSION"] = [0x81, [], CSAFE_GETPMCFG_CMD]
+cmds["CSAFE_PM_GET_HW_ADDRESS"] = [0x82, [], CSAFE_GETPMCFG_CMD]
+cmds["CSAFE_PM_GET_TICK_TIMEBASE"] = [0x83, [], CSAFE_GETPMCFG_CMD]
+cmds["CSAFE_PM_GET_HRM"] = [0x84, [], CSAFE_GETPMCFG_CMD]
+cmds["CSAFE_PM_GET_DATETIME"] = [0x85, [], CSAFE_GETPMCFG_CMD]
+cmds["CSAFE_PM_GET_WORKOUTTYPE"] = [0x89, [], CSAFE_GETPMCFG_CMD]
+cmds["CSAFE_PM_GET_WORKOUTSTATE"] = [0x8D, [], CSAFE_GETPMCFG_CMD]
+cmds["CSAFE_PM_GET_OPERATIONALSTATE"] = [0x8F, [], CSAFE_GETPMCFG_CMD]
 
 # resp[0xCmd_Id] = [COMMAND_NAME, [Bytes, ...]]
 # negative number for ASCII
