@@ -1,5 +1,10 @@
 """
 Description:
+    Py3Row byte handling routines.
+    __int2bytes
+    __bytes2int
+    encode -> creates a csafe frame message to hand off to the PM
+    decode -> decodes a csafe response response frame message.
 """
 # -----------------------------------------------------------------------------
 #                               Safe Imports
@@ -44,7 +49,18 @@ def __bytes2ascii(raw_bytes):
 
 def encode(arguments: list) -> list:
     """
-    Encode message.
+    Encode byte command message.
+    Long command:
+        +-------------+----------------+----------
+        |   command   | data byte count| data ...
+        |(0x00 – 0x7F)|   (0 - 255)    | (0 - 255)
+        +-------------+----------------+----------
+
+    Short command:
+        +----------------------
+        | command
+        |(0x80 – 0xFF)
+        +----------------------
     """
 
     # priming variables
@@ -202,27 +218,38 @@ def __verify_message(message: list) -> list:
 
 def decode(transmission: list) -> list:
     """
-    Decode recieved messages.
+    Decode response messages.
+    Response frame:
+        +--------------+--------------------------
+        |    Status    | Command Response data ...
+        |(0x00 – 0x7F*)|       (0 - 255)
+        +--------------+-------------------------
+    Command Response data:
+        +-------------+-----------------+-----------
+        |   Command   | Data Byte Count |   Data ...
+        |(0x00 – 0xFF)|   (0 - 255)     |(0 - 255)
+        +-------------+-----------------+----------
+
+        * Note: Response Status Byte Bit-Mapping 0x80/0x30/0x0F
     """
 
     # prime variables
     message = []
     stopfound = False
     response = None
+    pFrameStatus = csafe_dic.PREV_FRAME_STATUS
 
     try:
         # reportid = transmission[0]
         startflag = transmission[1]
 
         if startflag == csafe_dic.Extended_Frame_Start_Flag:
-            # destination = transmission[2]
-            # source = transmission[3]
             j = 4
         elif startflag == csafe_dic.Standard_Frame_Start_Flag:
             j = 2
         else:
             message = []
-            raise ValueError("No Start Flag found.")
+            raise ValueError(f"Fatal Error: Missing Start Flag {str(transmission)}.")
 
         while j < len(transmission):
             if transmission[j] == csafe_dic.Stop_Frame_Flag:
@@ -233,10 +260,15 @@ def decode(transmission: list) -> list:
 
         if not stopfound:
             message = []
-            raise ValueError("No Stop Flag found.")
+            raise ValueError(f"Fatal Error: Missing Stop Flag {str(transmission)}.")
 
         message = __verify_message(message)
+
+        # Response Status Byte Bit-Mapping 0x80/0x30/0x0F
         status = message.pop(0)
+        prev_frame_status = status & csafe_dic.MASK_PREVIOUS_FRAME_STATUS
+        if prev_frame_status != pFrameStatus.OK:
+            raise UserWarning(f"Previous message frame status:{prev_frame_status}")
 
         # prime variables
         response = {
@@ -274,25 +306,27 @@ def decode(transmission: list) -> list:
                     bytecount = message[k]
                     k = k + 1
 
-            # special case for capability code, response lengths differ based off capability code
+            # Special case for capability code, response lengths differ based
+            # on the capability code.
             if msgprop[0] == "CSAFE_GETCAPS_CMD":
                 msgprop[1] = [
                     1,
                 ] * bytecount
 
-            # special case for get id, response length is variable
+            # Special case for get id, response length is variable.
             if msgprop[0] == "CSAFE_GETID_CMD":
                 msgprop[1] = [
                     (-bytecount),
                 ]
 
-            # checking that the recieved data byte is the expected length, sanity check
+            # Check that the recieved data bytes is the expected length,
+            # sanity check.
             if abs(sum(msgprop[1])) != 0 and bytecount != abs(sum(msgprop[1])):
                 raise ValueError("Warning: bytecount is an unexpected length")
 
             # extract values
             for numbytes in msgprop[1]:
-                raw_bytes = message[k : k + abs(numbytes)]
+                raw_bytes = message[k: k + abs(numbytes)]
                 value = (
                     __bytes2int(raw_bytes)
                     if numbytes >= 0
