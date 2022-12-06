@@ -308,6 +308,8 @@ def main():
 
         if view == 2:
             force = erg.get_forceplot_data()
+            if len(force) < 1:
+                continue
             forcedata = ",".join([str(f) for f in force])
 
             print(str(power) + "W")
