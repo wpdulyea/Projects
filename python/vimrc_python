@@ -1,0 +1,116 @@
+set nocompatible              " required
+filetype off                  " required
+"set nu
+syntax on
+
+set encoding=utf-8
+
+" set the runtime path to include Vundle and initialize
+set rtp+=~/.vim/bundle/Vundle.vim
+call vundle#begin()
+
+
+" let Vundle manage Vundle, required
+Plugin 'gmarik/Vundle.vim'
+
+" add all your plugins here (note older versions of Vundle
+" used Bundle instead of Plugin)
+
+filetype plugin indent on    " required
+
+" Enable folding
+set foldmethod=indent
+set foldlevel=99
+
+" Enable folding with the spacebar
+nnoremap <space> za
+
+Plugin 'tmhedberg/SimpylFold'
+let g:SimpylFold_docstring_preview=1
+
+"" Languages/defaults
+" C
+augroup langC
+	au BufRead,BufNewFile *.c,*.h set expandtab
+	au BufRead,BufNewFile *.c,*.h set tabstop=4
+	au BufRead,BufNewFile *.c,*.h set shiftwidth=4
+	au BufRead,BufNewFile *.c,*.h set autoindent
+	au BufRead,BufNewFile *.c,*.h match BadWhitespace /^\t\+/
+	au BufRead,BufNewFile *.c,*.h match BadWhitespace /\s\+$/
+	au BufNewFile *.c,*.h set fileformat=unix
+	au BufRead,BufNewFile *.c,*.h let b:comment_leader = '/* '
+augroup END
+
+" Java
+augroup langJava
+	au BufRead,BufNewFile *.java set expandtab
+	au BufRead,BufNewFile *.java set tabstop=4
+	au BufRead,BufNewFile *.java set shiftwidth=4
+	au BufRead,BufNewFile *.java set autoindent
+	au BufRead,BufNewFile *.java match BadWhitespace /^\t\+/
+	au BufRead,BufNewFile *.java match BadWhitespace /\s\+$/
+	au BufNewFile *.java set fileformat=unix
+	au BufRead,BufNewFile *.java let b:comment_leader = '//'
+augroup END
+
+" Python, PEP-008
+augroup langPython
+	highlight BadWhitespace ctermbg=red guibg=red
+	au BufRead,BufNewFile *.py,*.pyw set expandtab
+	au BufRead,BufNewFile *.py,*.pyw set textwidth=79
+	au BufRead,BufNewFile *.py,*.pyw set tabstop=4
+	au BufRead,BufNewFile *.py,*.pyw set softtabstop=4
+	au BufRead,BufNewFile *.py,*.pyw set shiftwidth=4
+	au BufRead,BufNewFile *.py,*.pyw set autoindent
+	au BufRead,BufNewFile *.py,*.pyw call matchadd("BadWhitespace", '/^\t\+/')
+	au BufRead,BufNewFile *.py,*.pyw call matchadd("BadWhitespace", '/\s\+$/')
+	au BufNewFile *.py,*.pyw set fileformat=unix
+	au BufRead,BufNewFile *.py,*.pyw let b:comment_leader = '#'
+augroup END
+
+" JS
+augroup langJavaScript
+	au BufRead,BufNewFile *.js set expandtab
+	au BufRead,BufNewFile *.js set tabstop=4
+	au BufRead,BufNewFile *.js set softtabstop=4
+	au BufRead,BufNewFile *.js set shiftwidth=4
+	au BufRead,BufNewFile *.js set autoindent
+	au BufRead,BufNewFile *.js match BadWhitespace /^\t\+/
+	au BufRead,BufNewFile *.js match BadWhitespace /\s\+$/
+	au BufNewFile *.js set fileformat=unix
+	au BufRead,BufNewFile *.js let b:comment_leader = '//'
+augroup END
+
+" Makefile
+augroup langMake
+	au BufRead,BufNewFile Makefile* set noexpandtab
+augroup END
+
+Bundle 'Valloric/YouCompleteMe'
+let g:ycm_autoclose_preview_window_after_completion=1
+map <leader>g  :YcmCompleter GoToDefinitionElseDeclaration<CR>
+"Plugin 'vim-syntastic/syntastic'
+Plugin 'dense-analysis/ale'
+Plugin 'nvie/vim-flake8'
+let python_highlight_all=1
+
+" Color schemes
+Plugin 'jnurmine/Zenburn'
+Plugin 'altercation/vim-colors-solarized'
+if has('gui_running')
+  set background=dark
+  colorscheme solarized
+else
+  colorscheme zenburn
+endif
+
+"call togglebg#map("F5")
+
+Plugin 'scrooloose/nerdtree'
+Plugin 'jistr/vim-nerdtree-tabs'
+Plugin 'kien/ctrlp.vim'
+Plugin 'tpope/vim-fugitive'
+"Plugin 'Lokaltog/powerline', {'rtp': 'powerline/bindings/vim/'}
+" All of your Plugins must be added before the following line
+call vundle#end()            " required
+
