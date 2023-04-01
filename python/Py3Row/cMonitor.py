@@ -92,8 +92,25 @@ class Window(object):
     def __exit__(self, *args, **kwargs):
         pass
 
-    def get_cordinates(self):
+    @property
+    def coordinates(self):
         return self._cords
+
+    @coordinates.setter
+    def coordinates(self, value: list[int]):
+        self._cords = value
+
+    @proprty
+    def caption(self):
+        return self._caption
+
+    @caption.setter
+    def caption(self, caption: str = None, attr: int = None):
+        if caption is None:
+            self._add_caption()
+        elif attr is not None:
+            self._attr = attr
+        self._add_caption()
 
     def _add_caption(self):
         """
@@ -220,7 +237,7 @@ class ForceCurve(Window):
         # Start X axis at 1/4 of the width of the given window.
         x_plot = x_max * 1 // 8
         # x axis step to next start of plot
-        x_step = 1
+        x_step = (x_max - x_plot) * 1 // 2
 
         # ToDo: It is not clear where this value comes from.
         max_force = 300
@@ -228,6 +245,7 @@ class ForceCurve(Window):
             y_scaled = y_max / max_force
         else:
             y_scaled = 1
+
         # If there is no data re-plot current contents - usually on a redraw.
         if data is not None:
             if len(self._lastPlot) >= len(self._pColours):
