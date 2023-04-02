@@ -19,6 +19,8 @@ from usb import USBError
 
 # Local packages
 from pyrowlib import csafe_cmd
+from pyrowlib import csafe_dic
+
 
 # -----------------------------------------------------------------------------
 #                           Global definitions
@@ -170,7 +172,7 @@ class PyRow(object):
             # Collect force plot data and stroke state
             monitor["forceplot"] = self.get_forceplot_data()
 
-        monitor["status"] = results["CSAFE_GETSTATUS_CMD"][0] & 0xF
+        monitor["status"] = results["CSAFE_GETSTATUS_CMD"][0] & csafe_dic.MASK_STATE_MACHINE_STATE
 
         return monitor
 
@@ -201,7 +203,7 @@ class PyRow(object):
         forceplot = {}
         force = []
         StrokeState = csafe_cmd.csafe_dic.STROKE_STATE
-        RowState = csafe_cmd.csafe_dic.ROWING_STATE
+        State = csafe_cmd.csafe_dic.STATE_MACHINE_STATE
 
         # Break out of loop after transitioning from Dwelling to Recovery
         # or state machine is not active.
@@ -302,7 +304,7 @@ class PyRow(object):
         ergdata["maxtx"] = results["CSAFE_GETCAPS_CMD"][1]
         ergdata["mininterframe"] = results["CSAFE_GETCAPS_CMD"][2]
 
-        ergdata["status"] = results["CSAFE_GETSTATUS_CMD"][0] & 0xF
+        ergdata["status"] = results["CSAFE_GETSTATUS_CMD"][0] & csafe_dic.MASK_STATE_MACHINE_STATE
 
         return ergdata
 
@@ -321,7 +323,7 @@ class PyRow(object):
 
         status = {}
         status["strokestate"] = results["CSAFE_PM_GET_STROKESTATE"][0]
-        status["status"] = results["CSAFE_GETSTATUS_CMD"][0] & 0xF
+        status["status"] = results["CSAFE_GETSTATUS_CMD"][0] & csafe_dic.MASK_STATE_MACHINE_STATE
 
         return status
 

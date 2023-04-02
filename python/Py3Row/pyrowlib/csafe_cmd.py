@@ -1,5 +1,10 @@
 """
 Description:
+    Py3Row byte handling routines.
+    __int2bytes
+    __bytes2int
+    encode -> creates a csafe frame message to hand off to the PM
+    decode -> decodes a csafe response response frame message.
 """
 # -----------------------------------------------------------------------------
 #                               Safe Imports
@@ -44,7 +49,35 @@ def __bytes2ascii(raw_bytes):
 
 def encode(arguments: list) -> list:
     """
-    Encode message.
+    Encode byte command message.
+    Standard Frame structure:
+        +------------+----------+----------+-----------+
+        | Start Flag | Contents | Checksum | Stop Flag |
+        +------------+----------+----------+-----------+
+    Extended Frame structure:
+        +------------+----------+---------+----------+----------+-----------+
+        | Start Flag | Dest Add | Src Add | Contents | Checksum | Stop Flag |
+        +------------+----------+---------+----------+----------+-----------+
+
+    Contents.
+    Long command:
+        +-------------+----------------+----------
+        |   command   | data byte count| data ...
+        |(0x00 – 0x7F)|   (0 - 255)    | (0 - 255)
+        +-------------+----------------+----------
+
+    Short command:
+        +----------------------
+        | command
+        |(0x80 – 0xFF)
+        +----------------------
+
+    Description:
+        Given an argument list, first build the contents frame starting with
+        command.
+
+    Note, that special cases exist with command wrappers. These are commands
+    set asside to wrap around propietary commands.
     """
 
     # priming variables
@@ -61,19 +94,24 @@ def encode(arguments: list) -> list:
         cmdprop = csafe_dic.cmds[arg]
         command = []
 
+        # Long commands have MSB set,
+        # Short commands have MSB clear.
+        #
         # load variables if command is a Long Command
-        if len(cmdprop[1]) != 0:
+        if cmdprop[0] in range(0x0, 0x7F):
+            # Array of byte count, [1, 2, 1...]
             for varbytes in cmdprop[1]:
                 i += 1
                 intvalue = arguments[i]
-                value = __int2bytes(varbytes, intvalue)
-                command.extend(value)
+                bytevalue = __int2bytes(varbytes, intvalue)
+                command.extend(bytevalue)
 
             # data byte count
-            cmdbytes = len(command)
-            command.insert(0, cmdbytes)
+            command.insert(0, len(command))
+        elif cmdprop[0] not in range(0x80, 0xFF):
+            raise ValueError(f"Unsupported command {cmdprop}")
 
-        # add command id
+        # add command id: CMD|CNT|DATA...
         command.insert(0, cmdprop[0])
 
         # closes wrapper if required
@@ -85,19 +123,17 @@ def encode(arguments: list) -> list:
             wrapper = 0
 
         # create or extend wrapper
+        # [0xCMD, [bytes], 0xExtCMD]
         if len(cmdprop) == 3:  # checks if command needs a wrapper
-            if (
-                wrapper == cmdprop[2]
-            ):  # checks if currently in the same wrapper
+            # checks if currently in the same wrapper
+            if (wrapper == cmdprop[2]):
                 wrapped.extend(command)
             else:  # creating a new wrapper
                 wrapped = command
                 wrapper = cmdprop[2]
                 maxresponse += 2
-
-            command = (
-                []
-            )  # clear command to prevent it from getting into message
+            # clear command to prevent it from getting into message
+            command = ([])
 
         # max message length
         cmdid = cmdprop[0] | (wrapper << 8)
@@ -126,7 +162,7 @@ def encode(arguments: list) -> list:
 
         # byte stuffing
         if 0xF0 <= message[j] <= 0xF3:
-            message.insert(j, csafe_dic.Byte_Stuffing_Flag)
+            message.insert(j, csafe_dic.BSF)
             j += 1
             message[j] = message[j] & 0x3
 
@@ -169,7 +205,7 @@ def encode(arguments: list) -> list:
     return message
 
 
-def __verify_message(message: list) -> list:
+def __unpack_verify(message: list) -> list:
     # prime variables
     i = 0
     checksum = 0
@@ -178,6 +214,10 @@ def __verify_message(message: list) -> list:
         # checksum and unstuff
         while i < len(message):
             # byte unstuffing
+            # 0xF3, 0x00 = F0
+            # 0xF3, 0x01 = F1
+            # 0xF3, 0x02 = F2
+            # 0xF3, 0x03 = F3
             if message[i] == csafe_dic.Byte_Stuffing_Flag:
                 stuffvalue = message.pop(i + 1)
                 message[i] = 0xF0 | stuffvalue
@@ -202,28 +242,54 @@ def __verify_message(message: list) -> list:
 
 def decode(transmission: list) -> list:
     """
-    Decode recieved messages.
+    Decode response messages.
+
+    Standard Frame structure:
+        +------------+----------+----------+-----------+
+        | Start Flag | Contents | Checksum | Stop Flag |
+        +------------+----------+----------+-----------+
+    Extended Frame structure:
+        +------------+----------+---------+----------+----------+-----------+
+        | Start Flag | Dest Add | Src Add | Contents | Checksum | Stop Flag |
+        +------------+----------+---------+----------+----------+-----------+
+
+    Response message contents:
+        +--------------+--------------------------
+        |    Status    | Command Response data ...
+        |(0x00 – 0x7F*)|       (0 - 255)
+        +--------------+-------------------------
+    Command Response data:
+        +-------------+-----------------+-----------
+        |   Command   | Data Byte Count |   Data ...
+        |(0x00 – 0xFF)|   (0 - 255)     |(0 - 255)
+        +-------------+-----------------+----------
+
+        * Note: Response Status Byte Bit-Mapping 0x80/0x30/0x0F
     """
 
     # prime variables
     message = []
     stopfound = False
     response = None
+    dest_add = None
+    src_add = None
+    pFrameStatus = csafe_dic.PREV_FRAME_STATUS
 
     try:
-        # reportid = transmission[0]
-        startflag = transmission[1]
+        reportid = transmission.pop(0)
+        startflag = transmission.pop(0)
 
         if startflag == csafe_dic.Extended_Frame_Start_Flag:
-            # destination = transmission[2]
-            # source = transmission[3]
-            j = 4
-        elif startflag == csafe_dic.Standard_Frame_Start_Flag:
-            j = 2
-        else:
-            message = []
-            raise ValueError("No Start Flag found.")
+            dest_add = transmission.pop(0)
+            src_add = transmission.pop(0)
+        elif startflag != csafe_dic.Standard_Frame_Start_Flag:
+            # Keeps the lint happy.
+            reportid = reportid
+            dest_add = dest_add
+            src_add = src_add
+            raise ValueError(f"Missing Start Flag: {str(transmission)}.")
 
+        j = 0
         while j < len(transmission):
             if transmission[j] == csafe_dic.Stop_Frame_Flag:
                 stopfound = True
@@ -233,17 +299,18 @@ def decode(transmission: list) -> list:
 
         if not stopfound:
             message = []
-            raise ValueError("No Stop Flag found.")
+            raise ValueError(f"Missing Stop Flag: {str(transmission)}.")
 
-        message = __verify_message(message)
+        message = __unpack_verify(message)
+
+        # Response Status Byte Bit-Mapping 0x80/0x30/0x0F
         status = message.pop(0)
+        prev_frame_status = status & csafe_dic.MASK_PREVIOUS_FRAME_STATUS
+        if prev_frame_status != pFrameStatus.OK:
+            raise UserWarning(f"Previous message frame status:{prev_frame_status}")
 
         # prime variables
-        response = {
-            "CSAFE_GETSTATUS_CMD": [
-                status,
-            ]
-        }
+        response = {"CSAFE_GETSTATUS_CMD": [status]}
         k = 0
         wrapend = -1
         wrapper = 0x0
@@ -264,7 +331,7 @@ def decode(transmission: list) -> list:
             k = k + 1
 
             # if wrapper command then gets command in wrapper
-            if msgprop[0] == "CSAFE_SETUSERCFG1_CMD":
+            if msgprop[0] == "CSAFE_SETUSERCFG1_CMD" or msgprop[0] == "CSAFE_SETPMCFG_CMD" or msgprop[0] == "CSAFE_GETPMCFG_CMD":
                 wrapper = message[k - 2] << 8
                 wrapend = k + bytecount - 1
                 if bytecount:  # If wrapper length != 0
@@ -274,25 +341,25 @@ def decode(transmission: list) -> list:
                     bytecount = message[k]
                     k = k + 1
 
-            # special case for capability code, response lengths differ based off capability code
+            # Special case for capability code, response lengths differ based
+            # on the capability code.
             if msgprop[0] == "CSAFE_GETCAPS_CMD":
-                msgprop[1] = [
-                    1,
-                ] * bytecount
+                msgprop[1] = [1] * bytecount
 
-            # special case for get id, response length is variable
+            # Special case for get id, response length is variable.
             if msgprop[0] == "CSAFE_GETID_CMD":
                 msgprop[1] = [
                     (-bytecount),
                 ]
 
-            # checking that the recieved data byte is the expected length, sanity check
+            # Check that the recieved data bytes is the expected length,
+            # sanity check.
             if abs(sum(msgprop[1])) != 0 and bytecount != abs(sum(msgprop[1])):
                 raise ValueError("Warning: bytecount is an unexpected length")
 
             # extract values
             for numbytes in msgprop[1]:
-                raw_bytes = message[k : k + abs(numbytes)]
+                raw_bytes = message[k: k + abs(numbytes)]
                 value = (
                     __bytes2int(raw_bytes)
                     if numbytes >= 0
@@ -302,6 +369,8 @@ def decode(transmission: list) -> list:
                 k = k + abs(numbytes)
 
             response[msgprop[0]] = result
+    except KeyError as err:
+        print(f"message:[{str(message)}], error: {str(err)}")
     except Exception as err:
         print(str(err))
     finally:
