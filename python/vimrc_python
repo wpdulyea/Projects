@@ -1,0 +1,131 @@
+set nocompatible              " required
+filetype off                  " required
+"set nu
+execute pathogen#infect()
+syntax on
+set encoding=utf-8
+filetype plugin indent on    " required
+
+" Enable folding
+set foldmethod=indent
+set foldlevel=99
+" Enable folding with the spacebar
+nnoremap <space> za
+" set the runtime path to include Vundle and initialize
+
+set rtp+=~/.vim/bundle/Vundle.vim
+call vundle#begin()
+" let Vundle manage Vundle, required
+Plugin 'VundleVim/Vundle.vim'
+" add all your plugins here (note older versions of Vundle
+" used Bundle instead of Plugin)
+Plugin 'tmhedberg/SimpylFold'
+let g:SimpylFold_docstring_preview=1
+Bundle 'Valloric/YouCompleteMe'
+let g:ycm_autoclose_preview_window_after_completion=1
+map <leader>g  :YcmCompleter GoToDefinitionElseDeclaration<CR>
+let g:ycm_python_interpreter_path = ''
+let g:ycm_python_sys_path = []
+let g:ycm_extra_conf_vim_data = [ 
+                        \  'g:ycm_python_interpreter_path',
+                        \  'g:ycm_python_sys_path',
+                        \]
+
+let g:ycm_global_ycm_extra_conf = '~/.global_extra_conf.py'
+"Plugin 'vim-syntastic/syntastic'
+Plugin 'dense-analysis/ale'
+Plugin 'nvie/vim-flake8'
+Plugin 'integralist/vim-mypy'
+let python_highlight_all=1
+" Color schemes
+Plugin 'flazz/vim-colorschemes'
+Plugin 'altercation/vim-colors-solarized'
+Plugin 'Wombat'
+Plugin 'lifepillar/vim-solarized8'
+Plugin 'jonathanfilip/vim-lucius'
+if has('gui_running')
+  set background=dark
+  colorscheme solarized
+endif
+
+Plugin 'preservim/nerdtree'
+Plugin 'jistr/vim-nerdtree-tabs'
+Plugin 'ctrlpvim/ctrlp.vim'
+Plugin 'tpope/vim-fugitive'
+Bundle 'matze/vim-move'
+Plugin 'vim-airline/vim-airline'
+" All of your Plugins must be added before the following line
+call vundle#end()            " required
+
+" Languages/defaults
+" C
+augroup langC
+        au BufRead,BufNewFile *.c,*.h set expandtab
+        au BufRead,BufNewFile *.c,*.h set tabstop=4
+        au BufRead,BufNewFile *.c,*.h set shiftwidth=4
+        au BufRead,BufNewFile *.c,*.h set autoindent
+        au BufRead,BufNewFile *.c,*.h call matchadd("BadWhitespace", '/^\t\+/')
+	au BufRead,BufNewFile *.c,*.h call matchadd("BadWhitespace", '/\s\+$/')
+        au BufNewFile *.c,*.h set fileformat=unix
+        au BufRead,BufNewFile *.c,*.h let b:comment_leader = '/* '
+augroup END
+
+" Java
+augroup langJava
+        au BufRead,BufNewFile *.js,*.java set expandtab
+        au BufRead,BufNewFile *.js,*.java set tabstop=4
+        au BufRead,BufNewFile *.js,*.java set shiftwidth=4
+        au BufRead,BufNewFile *.js,*.java set autoindent
+        au BufRead,BufNewFile *.js,*.java call matchadd("BadWhitespace", '/^\t\+/')
+	au BufRead,BufNewFile *.js,*.java call matchadd("BadWhitespace", '/\s\+$/')
+        au BufNewFile *.js,*.java set fileformat=unix
+        au BufRead,BufNewFile *.js,*.java let b:comment_leader = '//'
+augroup END
+
+" Python, PEP-008
+augroup langPython
+        highlight BadWhitespace ctermbg=red guibg=red
+        au BufRead,BufNewFile *.py,*.pyw set expandtab
+        au BufRead,BufNewFile *.py,*.pyw retab
+        au BufRead,BufNewFile *.py,*.pyw set textwidth=159
+        au BufRead,BufNewFile *.py,*.pyw set tabstop=4
+        au BufRead,BufNewFile *.py,*.pyw set softtabstop=4
+        au BufRead,BufNewFile *.py,*.pyw set shiftwidth=4
+        au BufRead,BufNewFile *.py,*.pyw set autoindent
+        au BufRead,BufNewFile *.py,*.pyw call matchadd("BadWhitespace", '/^\t\+/')
+        au BufRead,BufNewFile *.py,*.pyw call matchadd("BadWhitespace", '/\s\+$/')
+        au BufNewFile *.py,*.pyw set fileformat=unix
+        au BufRead,BufNewFile *.py,*.pyw let b:comment_leader = '#'
+augroup END
+
+" Makefile
+augroup langMake
+        au BufRead,BufNewFile Makefile* set noexpandtab
+augroup END
+
+"XML language to include XenRT sequence file extensions
+augroup langXML
+        au BufNewFile,BufRead *.seq set syntax=xml
+        au BufRead,BufNewFile *.xml,*.seq set expandtab
+        au BufRead,BufNewFile *.xml,*.seq set tabstop=2
+        au BufRead,BufNewFile *.xml,*.seq set softtabstop=2
+        au BufRead,BufNewFile *.xml,*.seq set shiftwidth=2
+        au BufRead,BufNewFile *.xml,*.seq retab
+        au BufRead,BufNewFile *.xml,*.seq set autoindent
+        au BufRead,BufNewFile *.xml,*.seq call matchadd("BadWhitespace", '/^\t\+/')
+        au BufRead,BufNewFile *.xml,*.seq call matchadd("BadWhitespace", '/\s\+$/')
+        au BufNewFile *.xml,*.seq set fileformat=unix
+        au BufRead,BufNewFile *.xml,*.seq let b:comment_leader = '<!-- '
+augroup END
+
+augroup langJSON
+        au BufRead,BufNewFile *.json set expandtab
+        au BufRead,BufNewFile *.json set tabstop=2
+        au BufRead,BufNewFile *.json set softtabstop=2
+        au BufRead,BufNewFile *.json set shiftwidth=2
+        au BufRead,BufNewFile *.json retab
+        au BufRead,BufNewFile *.json set autoindent
+        au BufRead,BufNewFile *.json call matchadd("BadWhitespace", '/^\t\+/')
+        au BufRead,BufNewFile *.json call matchadd("BadWhitespace", '/\s\+$/')
+        au BufNewFile *.json set fileformat=unix
+augroup END
